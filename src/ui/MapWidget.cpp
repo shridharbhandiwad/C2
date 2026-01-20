@@ -4,6 +4,7 @@
 #include <QMouseEvent>
 #include <QWheelEvent>
 #include <QtMath>
+#include <cmath>
 
 namespace CounterUAS {
 
@@ -18,12 +19,51 @@ MapWidget::MapWidget(QWidget* parent) : QWidget(parent) {
 
 void MapWidget::setCenter(const GeoPosition& pos) {
     m_center = pos;
+    emit centerChanged(m_center);
+    update();
+}
+
+void MapWidget::setCenterSilent(const GeoPosition& pos) {
+    m_center = pos;
     update();
 }
 
 void MapWidget::setZoom(double zoom) {
     m_zoom = qBound(1.0, zoom, 20.0);
     emit zoomChanged(m_zoom);
+    update();
+}
+
+void MapWidget::setZoomSilent(double zoom) {
+    m_zoom = qBound(1.0, zoom, 20.0);
+    update();
+}
+
+// Convert map zoom level (1-20) to range scale in meters
+// Higher zoom = smaller range (more zoomed in)
+// Zoom 20 ~ 100m range, Zoom 1 ~ 50000m range
+double MapWidget::zoomToRangeScale(double zoom) {
+    // Logarithmic conversion: rangeScale = baseRange / 2^(zoom - minZoom)
+    // At zoom 1: ~50000m, at zoom 20: ~100m
+    double rangeScale = 50000.0 / pow(2.0, (zoom - 1.0) / 2.5);
+    return qBound(100.0, rangeScale, 50000.0);
+}
+
+// Convert range scale in meters to map zoom level
+double MapWidget::rangeScaleToZoom(double rangeM) {
+    // Inverse of the above: zoom = minZoom + log2(baseRange / rangeScale) * 2.5
+    double zoom = 1.0 + log2(50000.0 / rangeM) * 2.5;
+    return qBound(1.0, zoom, 20.0);
+}
+
+void MapWidget::pan(const QPointF& delta) {
+    double scale = m_zoom * 5000.0;  // Same scale factor as geoToScreen
+    double dLon = -delta.x() / scale;
+    double dLat = delta.y() / scale;
+    
+    m_center.longitude += dLon;
+    m_center.latitude += dLat;
+    emit centerChanged(m_center);
     update();
 }
 
@@ -91,10 +131,39 @@ void MapWidget::paintEvent(QPaintEvent* event) {
 }
 
 void MapWidget::mousePressEvent(QMouseEvent* event) {
-    if (event->button() == Qt::LeftButton) {
+    if (event->button() == Qt::LeftButton && m_panEnabled) {
+        m_panning = true;
+        m_lastPanPos = event->pos();
+        setCursor(Qt::ClosedHandCursor);
+        event->accept();
+        return;
+    }
+    
+    if (event->button() == Qt::RightButton) {
         GeoPosition clickPos = screenToGeo(event->pos());
         emit mapClicked(clickPos);
     }
+}
+
+void MapWidget::mouseMoveEvent(QMouseEvent* event) {
+    if (m_panning) {
+        QPointF delta = event->pos() - m_lastPanPos;
+        m_lastPanPos = event->pos();
+        pan(delta);
+        event->accept();
+        return;
+    }
+    QWidget::mouseMoveEvent(event);
+}
+
+void MapWidget::mouseReleaseEvent(QMouseEvent* event) {
+    if (m_panning && event->button() == Qt::LeftButton) {
+        m_panning = false;
+        setCursor(Qt::ArrowCursor);
+        event->accept();
+        return;
+    }
+    QWidget::mouseReleaseEvent(event);
 }
 
 void MapWidget::wheelEvent(QWheelEvent* event) {
