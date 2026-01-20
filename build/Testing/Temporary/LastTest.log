@@ -1,0 +1,66 @@
+Start testing: Dec 28 09:00 UTC
+----------------------------------------------------------
+1/3 Testing: TrackManagerTest
+1/3 Test: TrackManagerTest
+Command: "/workspace/counter-uas-c2/build/test_track_manager"
+Directory: /workspace/counter-uas-c2/build
+"TrackManagerTest" start time: Dec 28 09:00 UTC
+Output:
+----------------------------------------------------------
+qt.qpa.xcb: could not connect to display :1
+qt.qpa.plugin: Could not load the Qt platform plugin "xcb" in "" even though it was found.
+This application failed to start because no Qt platform plugin could be initialized. Reinstalling the application may fix this problem.
+
+Available platform plugins are: eglfs, linuxfb, minimal, minimalegl, offscreen, vnc, wayland-egl, wayland, wayland-xcomposite-egl, wayland-xcomposite-glx, xcb.
+
+<end of output>
+Test time =   0.02 sec
+----------------------------------------------------------
+Test Failed.
+"TrackManagerTest" end time: Dec 28 09:00 UTC
+"TrackManagerTest" time elapsed: 00:00:00
+----------------------------------------------------------
+
+2/3 Testing: ThreatAssessorTest
+2/3 Test: ThreatAssessorTest
+Command: "/workspace/counter-uas-c2/build/test_threat_assessor"
+Directory: /workspace/counter-uas-c2/build
+"ThreatAssessorTest" start time: Dec 28 09:00 UTC
+Output:
+----------------------------------------------------------
+qt.qpa.xcb: could not connect to display :1
+qt.qpa.plugin: Could not load the Qt platform plugin "xcb" in "" even though it was found.
+This application failed to start because no Qt platform plugin could be initialized. Reinstalling the application may fix this problem.
+
+Available platform plugins are: eglfs, linuxfb, minimal, minimalegl, offscreen, vnc, wayland-egl, wayland, wayland-xcomposite-egl, wayland-xcomposite-glx, xcb.
+
+<end of output>
+Test time =   0.02 sec
+----------------------------------------------------------
+Test Failed.
+"ThreatAssessorTest" end time: Dec 28 09:00 UTC
+"ThreatAssessorTest" time elapsed: 00:00:00
+----------------------------------------------------------
+
+3/3 Testing: VideoPipelineTest
+3/3 Test: VideoPipelineTest
+Command: "/workspace/counter-uas-c2/build/test_video_pipeline"
+Directory: /workspace/counter-uas-c2/build
+"VideoPipelineTest" start time: Dec 28 09:00 UTC
+Output:
+----------------------------------------------------------
+qt.qpa.xcb: could not connect to display :1
+qt.qpa.plugin: Could not load the Qt platform plugin "xcb" in "" even though it was found.
+This application failed to start because no Qt platform plugin could be initialized. Reinstalling the application may fix this problem.
+
+Available platform plugins are: eglfs, linuxfb, minimal, minimalegl, offscreen, vnc, wayland-egl, wayland, wayland-xcomposite-egl, wayland-xcomposite-glx, xcb.
+
+<end of output>
+Test time =   0.02 sec
+----------------------------------------------------------
+Test Failed.
+"VideoPipelineTest" end time: Dec 28 09:00 UTC
+"VideoPipelineTest" time elapsed: 00:00:00
+----------------------------------------------------------
+
+End testing: Dec 28 09:00 UTC
