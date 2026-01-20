@@ -33,6 +33,7 @@
 #include <QInputDialog>
 #include <QSettings>
 #include <QToolButton>
+#include <QFileInfo>
 
 namespace CounterUAS {
 
@@ -415,6 +416,85 @@ void MainWindow::setupPPIToolBar() {
     rangeBtn->setDefaultAction(range5kmAction);
     m_ppiToolBar->addWidget(rangeBtn);
     
+    m_ppiToolBar->addSeparator();
+
+    // Grouped Map Controls (local overlay)
+    QToolButton* mapBtn = new QToolButton(this);
+    mapBtn->setText("Map");
+    mapBtn->setPopupMode(QToolButton::MenuButtonPopup);
+    mapBtn->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+    mapBtn->setToolTip("Local map overlay controls");
+
+    QMenu* mapMenu = new QMenu(mapBtn);
+
+    QAction* loadMapAction = mapMenu->addAction("Load Map...");
+    loadMapAction->setToolTip("Load a TIFF map for PPI overlay");
+    connect(loadMapAction, &QAction::triggered, this, [this]() {
+        QString path = QFileDialog::getOpenFileName(
+            this,
+            "Load PPI Map",
+            QString(),
+            "GeoTIFF (*.tif *.tiff);;Images (*.png *.jpg *.jpeg *.bmp);;All Files (*)");
+        if (path.isEmpty()) {
+            return;
+        }
+
+        if (m_ppiWidget->loadLocalMap(path)) {
+            int ppiDisplayIndex = m_displayModeCombo->findData(1);
+            if (ppiDisplayIndex >= 0) {
+                m_displayModeCombo->setCurrentIndex(ppiDisplayIndex);
+            }
+            int mapOverlayIndex = m_ppiModeCombo->findData(static_cast<int>(PPIDisplayMode::MapOverlay));
+            if (mapOverlayIndex >= 0) {
+                m_ppiModeCombo->setCurrentIndex(mapOverlayIndex);
+            }
+            m_ppiWidget->setDisplayMode(PPIDisplayMode::MapOverlay);
+            statusBar()->showMessage(QString("PPI map loaded: %1").arg(QFileInfo(path).fileName()));
+        } else {
+            QMessageBox::warning(this, "Load Map", "Failed to load the selected map file.");
+        }
+    });
+
+    QAction* clearMapAction = mapMenu->addAction("Clear Map");
+    clearMapAction->setToolTip("Remove the local map overlay");
+    connect(clearMapAction, &QAction::triggered, this, [this]() {
+        m_ppiWidget->clearLocalMap();
+        statusBar()->showMessage("PPI map cleared");
+    });
+
+    mapMenu->addSeparator();
+
+    QAction* zoomMapInAction = mapMenu->addAction("Zoom Map In");
+    zoomMapInAction->setToolTip("Increase local map zoom");
+    connect(zoomMapInAction, &QAction::triggered, this, [this]() {
+        m_ppiWidget->zoomLocalMap(1.1);
+    });
+
+    QAction* zoomMapOutAction = mapMenu->addAction("Zoom Map Out");
+    zoomMapOutAction->setToolTip("Decrease local map zoom");
+    connect(zoomMapOutAction, &QAction::triggered, this, [this]() {
+        m_ppiWidget->zoomLocalMap(1.0 / 1.1);
+    });
+
+    QAction* resetMapAction = mapMenu->addAction("Reset Map View");
+    resetMapAction->setToolTip("Fit the local map to the PPI view");
+    connect(resetMapAction, &QAction::triggered, this, [this]() {
+        m_ppiWidget->resetLocalMapView();
+    });
+
+    mapMenu->addSeparator();
+
+    QAction* panModeAction = mapMenu->addAction("Pan Mode");
+    panModeAction->setCheckable(true);
+    panModeAction->setToolTip("Pan map with left-drag (right-drag always works)");
+    connect(panModeAction, &QAction::triggered, this, [this](bool checked) {
+        m_ppiWidget->setMapPanEnabled(checked);
+    });
+
+    mapBtn->setMenu(mapMenu);
+    mapBtn->setDefaultAction(loadMapAction);
+    m_ppiToolBar->addWidget(mapBtn);
+
     m_ppiToolBar->addSeparator();
     
     // Grouped Display Options

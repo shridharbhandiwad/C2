@@ -140,6 +140,17 @@ public:
     int mapZoomLevel() const { return m_mapZoomLevel; }
     void setMapOpacity(double opacity);
     double mapOpacity() const { return m_mapOpacity; }
+
+    // Local map overlay (TIFF or other raster images)
+    bool loadLocalMap(const QString& filePath);
+    void clearLocalMap();
+    bool hasLocalMap() const { return !m_localMap.isNull(); }
+    void zoomLocalMap(double factor);
+    void zoomLocalMap(double factor, const QPointF& anchor);
+    void panLocalMap(const QPointF& delta);
+    void resetLocalMapView();
+    void setMapPanEnabled(bool enabled);
+    bool isMapPanEnabled() const { return m_mapPanEnabled; }
     
     // Color scheme
     void setBackgroundColor(const QColor& color);
@@ -184,6 +195,8 @@ protected:
     void mousePressEvent(QMouseEvent* event) override;
     void mouseDoubleClickEvent(QMouseEvent* event) override;
     void wheelEvent(QWheelEvent* event) override;
+    void mouseMoveEvent(QMouseEvent* event) override;
+    void mouseReleaseEvent(QMouseEvent* event) override;
     void resizeEvent(QResizeEvent* event) override;
     
 private slots:
@@ -195,6 +208,7 @@ private:
     // Rendering methods
     void drawBackground(QPainter& painter);
     void drawMapTiles(QPainter& painter);
+    void drawLocalMap(QPainter& painter);
     void drawRangeRings(QPainter& painter);
     void drawAzimuthLines(QPainter& painter);
     void drawSweep(QPainter& painter);
@@ -215,6 +229,7 @@ private:
     MapTileKey geoToTile(const GeoPosition& pos, int zoom) const;
     QPointF tileToPixel(int tileX, int tileY, int zoom, const GeoPosition& topLeft) const;
     void updateVisibleTiles();
+    void updateLocalMapBaseScale();
     
     // Helper methods
     QPointF screenCenter() const;
@@ -275,6 +290,15 @@ private:
     QNetworkAccessManager* m_networkManager;
     QCache<MapTileKey, QPixmap> m_tileCache;
     QSet<MapTileKey> m_pendingTiles;
+
+    // Local map overlay
+    QPixmap m_localMap;
+    QPointF m_localMapOffset;
+    double m_localMapScale = 1.0;
+    double m_localMapBaseScale = 1.0;
+    bool m_mapPanEnabled = false;
+    bool m_mapPanning = false;
+    QPointF m_lastPanPos;
     
     // Colors
     QColor m_backgroundColor = QColor(10, 20, 10);
