@@ -84,11 +84,20 @@ public:
     
     // Center position (radar location)
     void setCenter(const GeoPosition& pos);
+    void setCenterSilent(const GeoPosition& pos);  // Set without emitting signal
     GeoPosition center() const { return m_center; }
     
     // Range scale in meters
     void setRangeScale(double rangeM);
+    void setRangeScaleSilent(double rangeM);  // Set without emitting signal
     double rangeScale() const { return m_rangeScaleM; }
+    
+    // Convert between range scale and map zoom level
+    static double rangeScaleToMapZoom(double rangeM);
+    static double mapZoomToRangeScale(double zoom);
+    
+    // Pan the view (updates center position)
+    void panView(const QPointF& deltaPixels);
     
     // Display mode
     void setDisplayMode(PPIDisplayMode mode);
@@ -187,6 +196,7 @@ signals:
     void trackDoubleClicked(const QString& trackId);
     void mapClicked(const GeoPosition& pos);
     void rangeScaleChanged(double rangeM);
+    void centerChanged(const GeoPosition& pos);
     void sweepAngleChanged(double angle);
     void displayModeChanged(PPIDisplayMode mode);
     

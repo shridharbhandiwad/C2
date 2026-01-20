@@ -12,6 +12,7 @@
 #include <QStackedWidget>
 #include <QComboBox>
 #include <QToolButton>
+#include "core/Track.h"  // For GeoPosition
 
 namespace CounterUAS {
 
@@ -96,6 +97,12 @@ private slots:
     void onPPIDisplayModeChanged(int mode);
     void onPPIRangeChanged(double rangeM);
     void onPPISweepToggle();
+    
+    // Map/PPI synchronization
+    void onMapCenterChanged(const GeoPosition& pos);
+    void onMapZoomChanged(double zoom);
+    void onPPICenterChanged(const GeoPosition& pos);
+    void onPPIRangeScaleChanged(double rangeM);
     
 private:
     void setupUI();

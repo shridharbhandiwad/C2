@@ -280,10 +280,12 @@ void MainWindow::setupToolBar() {
     QMenu* viewMenu = new QMenu(viewControlBtn);
     QAction* zoomInAction = viewMenu->addAction("Zoom In");
     connect(zoomInAction, &QAction::triggered, this, [this]() { 
+        // Zoom in on both map and PPI - map zoom triggers sync via signal
         m_mapWidget->setZoom(m_mapWidget->zoom() + 1); 
     });
     QAction* zoomOutAction = viewMenu->addAction("Zoom Out");
     connect(zoomOutAction, &QAction::triggered, this, [this]() { 
+        // Zoom out on both map and PPI - map zoom triggers sync via signal
         m_mapWidget->setZoom(m_mapWidget->zoom() - 1); 
     });
     QAction* centerAction = viewMenu->addAction("Center on Base");
@@ -292,6 +294,7 @@ void MainWindow::setupToolBar() {
         basePos.latitude = 34.0522;
         basePos.longitude = -118.2437;
         basePos.altitude = 100.0;
+        // Center both map and PPI - map center triggers sync via signal
         m_mapWidget->setCenter(basePos); 
     });
     
@@ -631,6 +634,16 @@ void MainWindow::setupConnections() {
                     m_statusSimStatus->setText("Simulation: Paused");
                 }
             });
+    
+    // Map/PPI synchronization - link center position and zoom/range
+    connect(m_mapWidget, &MapWidget::centerChanged,
+            this, &MainWindow::onMapCenterChanged);
+    connect(m_mapWidget, &MapWidget::zoomChanged,
+            this, &MainWindow::onMapZoomChanged);
+    connect(m_ppiWidget, &PPIDisplayWidget::centerChanged,
+            this, &MainWindow::onPPICenterChanged);
+    connect(m_ppiWidget, &PPIDisplayWidget::rangeScaleChanged,
+            this, &MainWindow::onPPIRangeScaleChanged);
 }
 
 void MainWindow::initializeSubsystems() {
@@ -646,12 +659,15 @@ void MainWindow::initializeSubsystems() {
     baseAsset.priorityLevel = 5;
     m_threatAssessor->addDefendedAsset(baseAsset);
     
-    // Center map on base
-    m_mapWidget->setCenter(baseAsset.position);
-    m_mapWidget->setZoom(15);
+    // Center map on base with initial zoom
+    double initialZoom = 15.0;
+    m_mapWidget->setCenterSilent(baseAsset.position);  // Use silent to avoid double-sync
+    m_mapWidget->setZoomSilent(initialZoom);
     
-    // Center PPI on base
-    m_ppiWidget->setCenter(baseAsset.position);
+    // Center PPI on base with linked range scale
+    double initialRangeM = MapWidget::zoomToRangeScale(initialZoom);
+    m_ppiWidget->setCenterSilent(baseAsset.position);  // Use silent to avoid double-sync
+    m_ppiWidget->setRangeScaleSilent(initialRangeM);
     m_ppiWidget->setDefendedAreaRadii(baseAsset.criticalRadiusM, baseAsset.warningRadiusM, 5000.0);
     
     // Set reference position for track list range calculation
@@ -693,19 +709,10 @@ void MainWindow::setupPPIDisplay() {
     // Configure PPI display
     m_ppiWidget->setTrackManager(m_trackManager);
     
-    // Set initial center to match map widget
-    GeoPosition basePos;
-    basePos.latitude = 34.0522;
-    basePos.longitude = -118.2437;
-    basePos.altitude = 100.0;
-    m_ppiWidget->setCenter(basePos);
-    
+    // Note: Center and range are set in initializeSubsystems() to stay linked with map
     // Configure defended area radii
     m_ppiWidget->setDefendedAreaRadii(500.0, 1500.0, 5000.0);
     m_ppiWidget->setDefendedAreaVisible(true);
-    
-    // Set initial range
-    m_ppiWidget->setRangeScale(5000.0);  // 5km default range
     
     // Enable track history
     m_ppiWidget->setShowTrackHistory(true);
@@ -725,7 +732,7 @@ void MainWindow::setupPPIDisplay() {
     connect(m_trackManager, &TrackManager::trackDropped,
             m_ppiWidget, &PPIDisplayWidget::removeTrack);
     
-    Logger::instance().info("MainWindow", "PPI display configured");
+    Logger::instance().info("MainWindow", "PPI display configured - linked with Map widget");
 }
 
 void MainWindow::onSimulationVideoFrame(const QImage& frame, qint64 timestamp) {
@@ -1113,6 +1120,28 @@ void MainWindow::onPPISweepToggle() {
         m_ppiSweepAction->setText("Start Sweep");
         statusBar()->showMessage("Radar sweep stopped");
     }
+}
+
+void MainWindow::onMapCenterChanged(const GeoPosition& pos) {
+    // Sync PPI center to map center (using silent setter to avoid feedback loop)
+    m_ppiWidget->setCenterSilent(pos);
+}
+
+void MainWindow::onMapZoomChanged(double zoom) {
+    // Convert map zoom to PPI range scale and sync
+    double rangeM = MapWidget::zoomToRangeScale(zoom);
+    m_ppiWidget->setRangeScaleSilent(rangeM);
+}
+
+void MainWindow::onPPICenterChanged(const GeoPosition& pos) {
+    // Sync map center to PPI center (using silent setter to avoid feedback loop)
+    m_mapWidget->setCenterSilent(pos);
+}
+
+void MainWindow::onPPIRangeScaleChanged(double rangeM) {
+    // Convert PPI range scale to map zoom and sync
+    double zoom = PPIDisplayWidget::rangeScaleToMapZoom(rangeM);
+    m_mapWidget->setZoomSilent(zoom);
 }
 
 } // namespace CounterUAS

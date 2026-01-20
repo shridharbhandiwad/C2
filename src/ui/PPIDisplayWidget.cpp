@@ -54,6 +54,14 @@ void PPIDisplayWidget::setCenter(const GeoPosition& pos) {
     m_center = pos;
     m_backgroundDirty = true;
     updateVisibleTiles();
+    emit centerChanged(m_center);
+    update();
+}
+
+void PPIDisplayWidget::setCenterSilent(const GeoPosition& pos) {
+    m_center = pos;
+    m_backgroundDirty = true;
+    updateVisibleTiles();
     update();
 }
 
@@ -62,6 +70,52 @@ void PPIDisplayWidget::setRangeScale(double rangeM) {
     m_backgroundDirty = true;
     emit rangeScaleChanged(m_rangeScaleM);
     updateVisibleTiles();
+    update();
+}
+
+void PPIDisplayWidget::setRangeScaleSilent(double rangeM) {
+    m_rangeScaleM = qBound(100.0, rangeM, 50000.0);
+    m_backgroundDirty = true;
+    updateVisibleTiles();
+    update();
+}
+
+// Convert range scale (meters) to map zoom level (1-20)
+// Higher zoom = more zoomed in = smaller range
+double PPIDisplayWidget::rangeScaleToMapZoom(double rangeM) {
+    // Logarithmic conversion: zoom = minZoom + log2(baseRange / rangeScale) * 2.5
+    // At rangeM 50000m -> zoom 1, at rangeM 100m -> zoom 20
+    double zoom = 1.0 + log2(50000.0 / rangeM) * 2.5;
+    return qBound(1.0, zoom, 20.0);
+}
+
+// Convert map zoom level (1-20) to range scale in meters
+double PPIDisplayWidget::mapZoomToRangeScale(double zoom) {
+    // Inverse: rangeScale = baseRange / 2^((zoom - minZoom) / 2.5)
+    double rangeScale = 50000.0 / pow(2.0, (zoom - 1.0) / 2.5);
+    return qBound(100.0, rangeScale, 50000.0);
+}
+
+void PPIDisplayWidget::panView(const QPointF& deltaPixels) {
+    if (qFuzzyIsNull(deltaPixels.x()) && qFuzzyIsNull(deltaPixels.y())) {
+        return;
+    }
+    
+    // Convert pixel delta to geo delta
+    double scale = ppiRadius() / m_rangeScaleM;
+    double distanceX = -deltaPixels.x() / scale;  // meters
+    double distanceY = deltaPixels.y() / scale;   // meters (y is inverted)
+    
+    // Convert meter offset to lat/lon
+    double dLat = distanceY / CoordinateUtils::DEG_TO_M_LAT;
+    double dLon = distanceX / CoordinateUtils::degToMeterLon(m_center.latitude);
+    
+    m_center.latitude += dLat;
+    m_center.longitude += dLon;
+    
+    m_backgroundDirty = true;
+    updateVisibleTiles();
+    emit centerChanged(m_center);
     update();
 }
 
@@ -466,9 +520,17 @@ void PPIDisplayWidget::paintEvent(QPaintEvent* event) {
 }
 
 void PPIDisplayWidget::mousePressEvent(QMouseEvent* event) {
-    if (!m_localMap.isNull() &&
-        (event->button() == Qt::RightButton ||
-         (m_mapPanEnabled && event->button() == Qt::LeftButton))) {
+    // Right-click or middle-click always starts view panning
+    if (event->button() == Qt::RightButton || event->button() == Qt::MiddleButton) {
+        m_mapPanning = true;
+        m_lastPanPos = event->pos();
+        setCursor(Qt::ClosedHandCursor);
+        event->accept();
+        return;
+    }
+    
+    // Local map pan with left click when enabled
+    if (!m_localMap.isNull() && m_mapPanEnabled && event->button() == Qt::LeftButton) {
         m_mapPanning = true;
         m_lastPanPos = event->pos();
         setCursor(Qt::ClosedHandCursor);
@@ -517,7 +579,14 @@ void PPIDisplayWidget::mouseMoveEvent(QMouseEvent* event) {
     if (m_mapPanning) {
         QPointF delta = event->pos() - m_lastPanPos;
         m_lastPanPos = event->pos();
-        panLocalMap(delta);
+        
+        // If we have a local map and pan mode is enabled, pan the local map overlay
+        if (!m_localMap.isNull() && m_mapPanEnabled) {
+            panLocalMap(delta);
+        } else {
+            // Otherwise, pan the view (center position)
+            panView(delta);
+        }
         event->accept();
         return;
     }
@@ -526,7 +595,8 @@ void PPIDisplayWidget::mouseMoveEvent(QMouseEvent* event) {
 
 void PPIDisplayWidget::mouseReleaseEvent(QMouseEvent* event) {
     if (m_mapPanning &&
-        (event->button() == Qt::LeftButton || event->button() == Qt::RightButton)) {
+        (event->button() == Qt::LeftButton || event->button() == Qt::RightButton || 
+         event->button() == Qt::MiddleButton)) {
         m_mapPanning = false;
         if (!m_localMap.isNull() && m_mapPanEnabled) {
             setCursor(Qt::OpenHandCursor);
