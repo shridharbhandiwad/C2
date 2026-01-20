@@ -7,6 +7,7 @@
 #include <QtMath>
 #include <QDateTime>
 #include <QUrlQuery>
+#include <QImageReader>
 
 namespace CounterUAS {
 
@@ -197,6 +198,91 @@ void PPIDisplayWidget::setMapOpacity(double opacity) {
     update();
 }
 
+bool PPIDisplayWidget::loadLocalMap(const QString& filePath) {
+    QImageReader reader(filePath);
+    reader.setAutoTransform(true);
+    QImage image = reader.read();
+    if (image.isNull()) {
+        return false;
+    }
+
+    m_localMap = QPixmap::fromImage(image);
+    m_localMapOffset = QPointF(0.0, 0.0);
+    updateLocalMapBaseScale();
+    m_localMapScale = m_localMapBaseScale;
+    m_mapPanning = false;
+    if (m_mapPanEnabled) {
+        setCursor(Qt::OpenHandCursor);
+    }
+    m_tileCache.clear();
+    m_pendingTiles.clear();
+    update();
+    return true;
+}
+
+void PPIDisplayWidget::clearLocalMap() {
+    m_localMap = QPixmap();
+    m_localMapOffset = QPointF(0.0, 0.0);
+    m_localMapScale = 1.0;
+    m_localMapBaseScale = 1.0;
+    m_mapPanning = false;
+    unsetCursor();
+    updateVisibleTiles();
+    update();
+}
+
+void PPIDisplayWidget::zoomLocalMap(double factor) {
+    zoomLocalMap(factor, screenCenter());
+}
+
+void PPIDisplayWidget::zoomLocalMap(double factor, const QPointF& anchor) {
+    if (m_localMap.isNull()) {
+        return;
+    }
+
+    double newScale = m_localMapScale * factor;
+    newScale = qBound(0.05, newScale, 20.0);
+    if (qFuzzyCompare(newScale, m_localMapScale)) {
+        return;
+    }
+
+    QPointF imageCenter(m_localMap.width() / 2.0, m_localMap.height() / 2.0);
+    QPointF mapCenter = screenCenter() + m_localMapOffset;
+    QPointF imagePos = (anchor - mapCenter) / m_localMapScale + imageCenter;
+    QPointF newMapCenter = anchor - (imagePos - imageCenter) * newScale;
+
+    m_localMapScale = newScale;
+    m_localMapOffset = newMapCenter - screenCenter();
+    update();
+}
+
+void PPIDisplayWidget::panLocalMap(const QPointF& delta) {
+    if (m_localMap.isNull()) {
+        return;
+    }
+    m_localMapOffset += delta;
+    update();
+}
+
+void PPIDisplayWidget::resetLocalMapView() {
+    if (m_localMap.isNull()) {
+        return;
+    }
+    updateLocalMapBaseScale();
+    m_localMapScale = m_localMapBaseScale;
+    m_localMapOffset = QPointF(0.0, 0.0);
+    update();
+}
+
+void PPIDisplayWidget::setMapPanEnabled(bool enabled) {
+    m_mapPanEnabled = enabled;
+    if (!m_localMap.isNull() && m_mapPanEnabled && !m_mapPanning) {
+        setCursor(Qt::OpenHandCursor);
+    } else if (!m_mapPanning) {
+        unsetCursor();
+    }
+}
+
 void PPIDisplayWidget::setBackgroundColor(const QColor& color) {
     m_backgroundColor = color;
     m_backgroundDirty = true;
@@ -380,6 +466,16 @@ void PPIDisplayWidget::paintEvent(QPaintEvent* event) {
 }
 
 void PPIDisplayWidget::mousePressEvent(QMouseEvent* event) {
+    if (!m_localMap.isNull() &&
+        (event->button() == Qt::RightButton ||
+         (m_mapPanEnabled && event->button() == Qt::LeftButton))) {
+        m_mapPanning = true;
+        m_lastPanPos = event->pos();
+        setCursor(Qt::ClosedHandCursor);
+        event->accept();
+        return;
+    }
+
     if (event->button() == Qt::LeftButton) {
         QString trackId = findTrackAtPoint(event->pos());
         if (!trackId.isEmpty()) {
@@ -406,13 +502,53 @@ void PPIDisplayWidget::mouseDoubleClickEvent(QMouseEvent* event) {
 
 void PPIDisplayWidget::wheelEvent(QWheelEvent* event) {
     double delta = event->angleDelta().y() / 120.0;
+    if (!m_localMap.isNull() && (event->modifiers() & Qt::ControlModifier)) {
+        double mapFactor = (delta > 0) ? 1.1 : (1.0 / 1.1);
+        zoomLocalMap(mapFactor, QPointF(event->pos()));
+        event->accept();
+        return;
+    }
+
     double scaleFactor = (delta > 0) ? 0.8 : 1.25;
     setRangeScale(m_rangeScaleM * scaleFactor);
+}
+
+void PPIDisplayWidget::mouseMoveEvent(QMouseEvent* event) {
+    if (m_mapPanning) {
+        QPointF delta = event->pos() - m_lastPanPos;
+        m_lastPanPos = event->pos();
+        panLocalMap(delta);
+        event->accept();
+        return;
+    }
+    QWidget::mouseMoveEvent(event);
+}
+
+void PPIDisplayWidget::mouseReleaseEvent(QMouseEvent* event) {
+    if (m_mapPanning &&
+        (event->button() == Qt::LeftButton || event->button() == Qt::RightButton)) {
+        m_mapPanning = false;
+        if (!m_localMap.isNull() && m_mapPanEnabled) {
+            setCursor(Qt::OpenHandCursor);
+        } else {
+            unsetCursor();
+        }
+        event->accept();
+        return;
+    }
+    QWidget::mouseReleaseEvent(event);
 }
 
 void PPIDisplayWidget::resizeEvent(QResizeEvent* event) {
     QWidget::resizeEvent(event);
     m_backgroundDirty = true;
+    if (!m_localMap.isNull()) {
+        double previousBase = m_localMapBaseScale;
+        updateLocalMapBaseScale();
+        if (qFuzzyCompare(m_localMapScale, previousBase)) {
+            m_localMapScale = m_localMapBaseScale;
+        }
+    }
     updateVisibleTiles();
 }
 
@@ -443,10 +579,19 @@ void PPIDisplayWidget::drawBackground(QPainter& painter) {
 }
 
 void PPIDisplayWidget::drawMapTiles(QPainter& painter) {
-    if (m_mapTileUrlTemplate.isEmpty()) return;
-    
     painter.setOpacity(m_mapOpacity);
-    
+
+    if (!m_localMap.isNull()) {
+        drawLocalMap(painter);
+        painter.setOpacity(1.0);
+        return;
+    }
+
+    if (m_mapTileUrlTemplate.isEmpty()) {
+        painter.setOpacity(1.0);
+        return;
+    }
+
     // Calculate visible tile range
     QPointF center = screenCenter();
     double radius = ppiRadius();
@@ -488,6 +633,20 @@ void PPIDisplayWidget::drawMapTiles(QPainter& painter) {
     }
     
     painter.setOpacity(1.0);
+}
+
+void PPIDisplayWidget::drawLocalMap(QPainter& painter) {
+    if (m_localMap.isNull()) {
+        return;
+    }
+
+    QPointF center = screenCenter();
+    QPointF mapCenter = center + m_localMapOffset;
+    QSizeF scaledSize(m_localMap.width() * m_localMapScale,
+                      m_localMap.height() * m_localMapScale);
+    QPointF topLeft = mapCenter - QPointF(scaledSize.width() / 2.0, scaledSize.height() / 2.0);
+
+    painter.drawPixmap(QRectF(topLeft, scaledSize), m_localMap, m_localMap.rect());
 }
 
 void PPIDisplayWidget::drawRangeRings(QPainter& painter) {
@@ -997,6 +1156,10 @@ void PPIDisplayWidget::updateVisibleTiles() {
         m_displayMode != PPIDisplayMode::MapOnly) {
         return;
     }
+
+    if (!m_localMap.isNull()) {
+        return;
+    }
     
     // Pre-fetch visible tiles
     for (int dx = -2; dx <= 2; ++dx) {
@@ -1010,6 +1173,17 @@ void PPIDisplayWidget::updateVisibleTiles() {
             }
         }
     }
+}
+
+void PPIDisplayWidget::updateLocalMapBaseScale() {
+    if (m_localMap.isNull()) {
+        return;
+    }
+
+    double diameter = qMax(1.0, ppiRadius() * 2.0);
+    double scaleX = diameter / m_localMap.width();
+    double scaleY = diameter / m_localMap.height();
+    m_localMapBaseScale = qBound(0.02, qMin(scaleX, scaleY), 20.0);
 }
 
 QPointF PPIDisplayWidget::screenCenter() const {
