@@ -15,6 +15,9 @@ MapWidget::MapWidget(QWidget* parent) : QWidget(parent) {
     m_center.latitude = 34.0522;
     m_center.longitude = -118.2437;
     m_center.altitude = 0;
+    
+    // Initialize view range from default zoom
+    m_viewRangeM = zoomToRangeScale(m_zoom);
 }
 
 void MapWidget::setCenter(const GeoPosition& pos) {
@@ -30,12 +33,14 @@ void MapWidget::setCenterSilent(const GeoPosition& pos) {
 
 void MapWidget::setZoom(double zoom) {
     m_zoom = qBound(1.0, zoom, 20.0);
+    m_viewRangeM = zoomToRangeScale(m_zoom);
     emit zoomChanged(m_zoom);
     update();
 }
 
 void MapWidget::setZoomSilent(double zoom) {
     m_zoom = qBound(1.0, zoom, 20.0);
+    m_viewRangeM = zoomToRangeScale(m_zoom);
     update();
 }
 
@@ -57,12 +62,17 @@ double MapWidget::rangeScaleToZoom(double rangeM) {
 }
 
 void MapWidget::pan(const QPointF& delta) {
-    double scale = m_zoom * 5000.0;  // Same scale factor as geoToScreen
-    double dLon = -delta.x() / scale;
-    double dLat = delta.y() / scale;
+    // Convert pixel delta to meters using the same scale as geoToScreen
+    double scale = mapRadius() / m_viewRangeM;  // pixels per meter
+    double distanceX = -delta.x() / scale;  // meters (negative: drag right = move view left = center moves right in world)
+    double distanceY = delta.y() / scale;   // meters (positive: drag down = move view up = center moves down in world)
     
-    m_center.longitude += dLon;
+    // Convert meter offset to lat/lon using proper geographic conversion
+    double dLat = distanceY / CoordinateUtils::DEG_TO_M_LAT;
+    double dLon = distanceX / CoordinateUtils::degToMeterLon(m_center.latitude);
+    
     m_center.latitude += dLat;
+    m_center.longitude += dLon;
     emit centerChanged(m_center);
     update();
 }
@@ -123,11 +133,17 @@ void MapWidget::paintEvent(QPaintEvent* event) {
     
     // Draw scale and info
     painter.setPen(Qt::white);
+    QString rangeStr;
+    if (m_viewRangeM >= 1000) {
+        rangeStr = QString("Range: %1 km").arg(m_viewRangeM / 1000.0, 0, 'f', 1);
+    } else {
+        rangeStr = QString("Range: %1 m").arg(m_viewRangeM, 0, 'f', 0);
+    }
     painter.drawText(10, height() - 10, 
-                    QString("Lat: %1  Lon: %2  Zoom: %3")
+                    QString("Lat: %1  Lon: %2  %3")
                         .arg(m_center.latitude, 0, 'f', 4)
                         .arg(m_center.longitude, 0, 'f', 4)
-                        .arg(m_zoom, 0, 'f', 1));
+                        .arg(rangeStr));
 }
 
 void MapWidget::mousePressEvent(QMouseEvent* event) {
@@ -175,53 +191,69 @@ void MapWidget::resizeEvent(QResizeEvent* event) {
     QWidget::resizeEvent(event);
 }
 
+double MapWidget::mapRadius() const {
+    // Use the smaller dimension to define the "view radius" (half the visible range)
+    return qMin(width(), height()) / 2.0 - 20;  // Leave margin for labels
+}
+
 QPointF MapWidget::geoToScreen(const GeoPosition& pos) const {
-    double scale = m_zoom * 5000.0;  // pixels per degree at this zoom
+    // Convert geographic position to local meters from center
+    QPointF localMeters = CoordinateUtils::geoToLocal(pos, m_center);
     
-    double dx = (pos.longitude - m_center.longitude) * scale;
-    double dy = -(pos.latitude - m_center.latitude) * scale;
+    // Scale: pixels per meter based on view range
+    double scale = mapRadius() / m_viewRangeM;
+    
+    // Convert meters to screen pixels (Y is inverted in screen coordinates)
+    double dx = localMeters.x() * scale;
+    double dy = -localMeters.y() * scale;
     
     return QPointF(width() / 2.0 + dx, height() / 2.0 + dy);
 }
 
 GeoPosition MapWidget::screenToGeo(const QPointF& screen) const {
-    double scale = m_zoom * 5000.0;
+    // Scale: pixels per meter based on view range
+    double scale = mapRadius() / m_viewRangeM;
     
-    double dx = (screen.x() - width() / 2.0) / scale;
-    double dy = -(screen.y() - height() / 2.0) / scale;
+    // Convert screen pixels to local meters (Y is inverted)
+    double localX = (screen.x() - width() / 2.0) / scale;
+    double localY = -(screen.y() - height() / 2.0) / scale;
     
-    GeoPosition pos;
-    pos.latitude = m_center.latitude + dy;
-    pos.longitude = m_center.longitude + dx;
-    pos.altitude = m_center.altitude;
-    return pos;
+    // Convert local meters to geographic position
+    return CoordinateUtils::localToGeo(QPointF(localX, localY), m_center);
 }
 
 void MapWidget::drawGrid(QPainter& painter) {
     painter.setPen(QPen(QColor(60, 70, 80), 1));
     
-    double gridSpacing = 0.01 / (m_zoom / 10.0);
+    // Calculate grid spacing in degrees based on view range
+    // We want roughly 5-10 grid lines across the view
+    double viewRangeDegLat = m_viewRangeM / CoordinateUtils::DEG_TO_M_LAT;
+    double gridSpacing = viewRangeDegLat / 5.0;
+    
+    // Round to a nice value
+    double magnitude = std::pow(10.0, std::floor(std::log10(gridSpacing)));
+    gridSpacing = std::ceil(gridSpacing / magnitude) * magnitude;
     
     double startLat = std::floor(m_center.latitude / gridSpacing) * gridSpacing - gridSpacing * 5;
     double startLon = std::floor(m_center.longitude / gridSpacing) * gridSpacing - gridSpacing * 5;
     
-    for (int i = 0; i < 10; ++i) {
+    for (int i = 0; i < 12; ++i) {
         GeoPosition p1, p2;
         p1.latitude = startLat + i * gridSpacing;
         p1.longitude = startLon;
         p2.latitude = startLat + i * gridSpacing;
-        p2.longitude = startLon + gridSpacing * 10;
+        p2.longitude = startLon + gridSpacing * 12;
         
         QPointF s1 = geoToScreen(p1);
         QPointF s2 = geoToScreen(p2);
         painter.drawLine(s1, s2);
     }
     
-    for (int i = 0; i < 10; ++i) {
+    for (int i = 0; i < 12; ++i) {
         GeoPosition p1, p2;
         p1.latitude = startLat;
         p1.longitude = startLon + i * gridSpacing;
-        p2.latitude = startLat + gridSpacing * 10;
+        p2.latitude = startLat + gridSpacing * 12;
         p2.longitude = startLon + i * gridSpacing;
         
         QPointF s1 = geoToScreen(p1);
@@ -231,19 +263,20 @@ void MapWidget::drawGrid(QPainter& painter) {
 }
 
 void MapWidget::drawDefendedArea(QPainter& painter) {
-    // Draw defended area circles
+    // Draw defended area circles using proper pixel-per-meter scale
     QPointF centerPt = geoToScreen(m_center);
+    double scale = mapRadius() / m_viewRangeM;  // pixels per meter
     
-    // Critical zone (red)
+    // Critical zone (red) - 500m radius
     painter.setPen(QPen(QColor(255, 0, 0, 100), 2));
     painter.setBrush(QColor(255, 0, 0, 30));
-    double criticalRadius = 500.0 * m_zoom * 0.01;  // Simplified
+    double criticalRadius = 500.0 * scale;
     painter.drawEllipse(centerPt, criticalRadius, criticalRadius);
     
-    // Warning zone (yellow)
+    // Warning zone (yellow) - 1500m radius
     painter.setPen(QPen(QColor(255, 255, 0, 100), 2));
     painter.setBrush(QColor(255, 255, 0, 20));
-    double warningRadius = 1500.0 * m_zoom * 0.01;
+    double warningRadius = 1500.0 * scale;
     painter.drawEllipse(centerPt, warningRadius, warningRadius);
 }
 
