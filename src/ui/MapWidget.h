@@ -55,6 +55,7 @@ protected:
     void resizeEvent(QResizeEvent* event) override;
     
 private:
+    double mapRadius() const;
     QPointF geoToScreen(const GeoPosition& pos) const;
     GeoPosition screenToGeo(const QPointF& screen) const;
     void drawGrid(QPainter& painter);
@@ -64,6 +65,7 @@ private:
     
     GeoPosition m_center;
     double m_zoom = 15.0;
+    double m_viewRangeM = 5000.0;  // View range in meters (linked with PPI range scale)
     QString m_selectedTrackId;
     QHash<QString, Track*> m_tracks;
     
