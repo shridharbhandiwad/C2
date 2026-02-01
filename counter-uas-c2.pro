@@ -92,7 +92,8 @@ SOURCES += \
     src/ui/CameraStatusPanel.cpp \
     src/ui/EffectorControlPanel.cpp \
     src/ui/AlertQueue.cpp \
-    src/ui/EngagementDialog.cpp
+    src/ui/EngagementDialog.cpp \
+    src/ui/ThemeManager.cpp
 
 # Config module sources
 SOURCES += \
@@ -179,7 +180,8 @@ HEADERS += \
     src/ui/CameraStatusPanel.h \
     src/ui/EffectorControlPanel.h \
     src/ui/AlertQueue.h \
-    src/ui/EngagementDialog.h
+    src/ui/EngagementDialog.h \
+    src/ui/ThemeManager.h
 
 # Config module headers
 HEADERS += \
