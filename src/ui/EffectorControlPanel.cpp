@@ -1,9 +1,11 @@
 #include "ui/EffectorControlPanel.h"
+#include "ui/ThemeManager.h"
 #include "core/EngagementManager.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QGroupBox>
 #include <QMessageBox>
+#include <QFrame>
 
 namespace CounterUAS {
 
@@ -23,64 +25,106 @@ EffectorControlPanel::EffectorControlPanel(EngagementManager* manager, QWidget* 
 
 void EffectorControlPanel::setupUI() {
     QVBoxLayout* layout = new QVBoxLayout(this);
-    layout->setContentsMargins(5, 5, 5, 5);
+    layout->setContentsMargins(8, 8, 8, 8);
+    layout->setSpacing(12);
     
-    // Effector list
+    // Effector list with modern styling
     QGroupBox* listGroup = new QGroupBox("Available Effectors", this);
+    listGroup->setStyleSheet(ThemeManager::groupBoxStyle());
     QVBoxLayout* listLayout = new QVBoxLayout(listGroup);
+    listLayout->setContentsMargins(8, 16, 8, 8);
     
     m_effectorList = new QListWidget(this);
     m_effectorList->setMinimumHeight(150);
+    m_effectorList->setStyleSheet(ThemeManager::listWidgetStyle());
     connect(m_effectorList, &QListWidget::itemClicked, 
             this, &EffectorControlPanel::onEffectorItemClicked);
     listLayout->addWidget(m_effectorList);
     
     layout->addWidget(listGroup);
     
-    // Status display
+    // Status display with modern styling
     QGroupBox* statusGroup = new QGroupBox("Selected Effector", this);
+    statusGroup->setStyleSheet(ThemeManager::groupBoxStyle());
     QVBoxLayout* statusLayout = new QVBoxLayout(statusGroup);
+    statusLayout->setContentsMargins(12, 20, 12, 12);
+    statusLayout->setSpacing(10);
     
     m_selectedEffectorLabel = new QLabel("None selected", this);
-    m_selectedEffectorLabel->setStyleSheet("font-weight: bold;");
+    m_selectedEffectorLabel->setStyleSheet(
+        "font-weight: bold;"
+        "font-size: 13px;"
+        "color: #e6edf3;"
+    );
     statusLayout->addWidget(m_selectedEffectorLabel);
     
     m_statusLabel = new QLabel("Status: -", this);
+    m_statusLabel->setStyleSheet("color: #8b949e;");
     statusLayout->addWidget(m_statusLabel);
     
+    // Readiness bar
     QHBoxLayout* readinessLayout = new QHBoxLayout();
-    readinessLayout->addWidget(new QLabel("Readiness:", this));
+    QLabel* readinessLabel = new QLabel("Readiness:", this);
+    readinessLabel->setStyleSheet("color: #8b949e;");
+    readinessLayout->addWidget(readinessLabel);
+    
     m_readinessBar = new QProgressBar(this);
     m_readinessBar->setRange(0, 100);
     m_readinessBar->setValue(0);
+    m_readinessBar->setStyleSheet(ThemeManager::progressBarStyle());
+    m_readinessBar->setTextVisible(true);
+    m_readinessBar->setFormat("%p%");
     readinessLayout->addWidget(m_readinessBar);
     statusLayout->addLayout(readinessLayout);
     
     m_roundsLabel = new QLabel("Rounds: N/A", this);
+    m_roundsLabel->setStyleSheet(
+        "color: #8b949e;"
+        "font-family: 'Consolas', monospace;"
+    );
     statusLayout->addWidget(m_roundsLabel);
     
     layout->addWidget(statusGroup);
     
-    // Control buttons
+    // Control buttons with modern styling
     QGroupBox* controlGroup = new QGroupBox("Engagement Control", this);
+    controlGroup->setStyleSheet(ThemeManager::groupBoxStyle());
     QVBoxLayout* controlLayout = new QVBoxLayout(controlGroup);
+    controlLayout->setContentsMargins(12, 20, 12, 12);
+    controlLayout->setSpacing(10);
     
     m_engageBtn = new QPushButton("ENGAGE TARGET", this);
-    m_engageBtn->setStyleSheet(
-        "QPushButton { background-color: #cc0000; color: white; font-weight: bold; font-size: 14px; }"
-        "QPushButton:disabled { background-color: #666666; }"
-        "QPushButton:hover:enabled { background-color: #ff0000; }");
+    m_engageBtn->setStyleSheet(ThemeManager::engageButtonStyle());
     m_engageBtn->setMinimumHeight(50);
     m_engageBtn->setEnabled(false);
+    m_engageBtn->setCursor(Qt::PointingHandCursor);
     connect(m_engageBtn, &QPushButton::clicked, this, &EffectorControlPanel::onEngageClicked);
     controlLayout->addWidget(m_engageBtn);
     
     m_disengageBtn = new QPushButton("DISENGAGE", this);
     m_disengageBtn->setStyleSheet(
-        "QPushButton { background-color: #cc6600; color: white; font-weight: bold; }"
-        "QPushButton:disabled { background-color: #666666; }");
-    m_disengageBtn->setMinimumHeight(35);
+        "QPushButton {"
+        "   background: qlineargradient(x1:0, y1:0, x2:0, y2:1,"
+        "       stop:0 #cc6600, stop:1 #994d00);"
+        "   border: 1px solid #ff8c00;"
+        "   border-radius: 6px;"
+        "   color: white;"
+        "   font-weight: bold;"
+        "   padding: 8px 16px;"
+        "}"
+        "QPushButton:hover:enabled {"
+        "   background: qlineargradient(x1:0, y1:0, x2:0, y2:1,"
+        "       stop:0 #ff8c00, stop:1 #cc6600);"
+        "}"
+        "QPushButton:disabled {"
+        "   background-color: #21262d;"
+        "   border-color: #30363d;"
+        "   color: #484f58;"
+        "}"
+    );
+    m_disengageBtn->setMinimumHeight(38);
     m_disengageBtn->setEnabled(false);
+    m_disengageBtn->setCursor(Qt::PointingHandCursor);
     connect(m_disengageBtn, &QPushButton::clicked, this, &EffectorControlPanel::onDisengageClicked);
     controlLayout->addWidget(m_disengageBtn);
     

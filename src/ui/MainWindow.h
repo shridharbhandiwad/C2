@@ -106,6 +106,7 @@ private slots:
     
 private:
     void setupUI();
+    void setupStatusBar();
     void setupMenuBar();
     void setupToolBar();
     void setupPPIToolBar();
@@ -163,6 +164,7 @@ private:
     QLabel* m_statusTrackCount;
     QLabel* m_statusThreatCount;
     QLabel* m_statusSimStatus;
+    QLabel* m_statusSimIndicator;
     QLabel* m_statusTime;
     
     // Menu actions

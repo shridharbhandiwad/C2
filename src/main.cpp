@@ -10,13 +10,15 @@
  * - Threat assessment and prioritization
  * - Video feed management with overlays
  * - Effector control (RF Jammer, Kinetic, Directed Energy)
- * - Modern Qt-based tactical interface
+ * - Modern Qt-based tactical interface with professional dark theme
  */
 
 #include <QApplication>
 #include <QStyleFactory>
 #include <QSurfaceFormat>
+#include <QScreen>
 #include "ui/MainWindow.h"
+#include "ui/ThemeManager.h"
 #include "config/ConfigManager.h"
 #include "config/DatabaseManager.h"
 #include "utils/Logger.h"
@@ -26,6 +28,12 @@ using namespace CounterUAS;
 
 int main(int argc, char *argv[])
 {
+    // Enable HiDPI scaling before creating QApplication
+#if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
+    QApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
+    QApplication::setAttribute(Qt::AA_UseHighDpiPixmaps);
+#endif
+    
     // Set OpenGL format for video rendering
     QSurfaceFormat format;
     format.setDepthBufferSize(24);
@@ -39,24 +47,8 @@ int main(int argc, char *argv[])
     app.setApplicationVersion("1.0.0");
     app.setOrganizationName("Defense Systems");
     
-    // Set dark fusion style
-    app.setStyle(QStyleFactory::create("Fusion"));
-    
-    QPalette darkPalette;
-    darkPalette.setColor(QPalette::Window, QColor(53, 53, 53));
-    darkPalette.setColor(QPalette::WindowText, Qt::white);
-    darkPalette.setColor(QPalette::Base, QColor(25, 25, 25));
-    darkPalette.setColor(QPalette::AlternateBase, QColor(53, 53, 53));
-    darkPalette.setColor(QPalette::ToolTipBase, Qt::white);
-    darkPalette.setColor(QPalette::ToolTipText, Qt::white);
-    darkPalette.setColor(QPalette::Text, Qt::white);
-    darkPalette.setColor(QPalette::Button, QColor(53, 53, 53));
-    darkPalette.setColor(QPalette::ButtonText, Qt::white);
-    darkPalette.setColor(QPalette::BrightText, Qt::red);
-    darkPalette.setColor(QPalette::Link, QColor(42, 130, 218));
-    darkPalette.setColor(QPalette::Highlight, QColor(42, 130, 218));
-    darkPalette.setColor(QPalette::HighlightedText, Qt::black);
-    app.setPalette(darkPalette);
+    // Initialize theme manager with modern dark theme
+    ThemeManager::instance().initialize(&app);
     
     // Initialize logger
     Logger::instance().setLogLevel(LogLevel::Debug);

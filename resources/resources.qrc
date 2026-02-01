@@ -1,10 +1,42 @@
 <!DOCTYPE RCC>
 <RCC version="1.0">
     <qresource prefix="/">
-        <!-- Resource file for Counter-UAS C2 application -->
-        <!-- Add icon and config resources here as needed -->
-        <!-- Example: <file>icons/app.png</file> -->
+        <!-- Counter-UAS C2 application resources -->
+        
+        <!-- Stylesheets -->
+        <file>styles/dark_theme.qss</file>
+        
+        <!-- Icons - Navigation & View -->
+        <file>icons/chevron-down.svg</file>
+        <file>icons/chevron-up.svg</file>
+        <file>icons/zoom-in.svg</file>
+        <file>icons/zoom-out.svg</file>
+        <file>icons/center.svg</file>
+        <file>icons/fullscreen.svg</file>
+        <file>icons/map.svg</file>
+        <file>icons/radar.svg</file>
+        
+        <!-- Icons - Actions -->
+        <file>icons/play.svg</file>
+        <file>icons/stop.svg</file>
+        <file>icons/pause.svg</file>
+        <file>icons/reset.svg</file>
+        <file>icons/check.svg</file>
+        <file>icons/close.svg</file>
+        <file>icons/float.svg</file>
+        <file>icons/settings.svg</file>
+        
+        <!-- Icons - Domain Specific -->
+        <file>icons/target.svg</file>
+        <file>icons/camera.svg</file>
+        <file>icons/record.svg</file>
+        <file>icons/snapshot.svg</file>
+        <file>icons/sensor.svg</file>
+        <file>icons/effector.svg</file>
+        <file>icons/alert.svg</file>
+        <file>icons/tracks.svg</file>
     </qresource>
+    
     <qresource prefix="/simulation">
         <!-- Simulation video assets -->
         <!-- Add simulation frame images here for image sequence playback -->

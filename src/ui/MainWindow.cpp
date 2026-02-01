@@ -9,6 +9,7 @@
 #include "ui/CameraStatusPanel.h"
 #include "ui/EffectorControlPanel.h"
 #include "ui/AlertQueue.h"
+#include "ui/ThemeManager.h"
 #include "ui/dialogs/SensorConfigDialog.h"
 #include "ui/dialogs/EffectorStatusDialog.h"
 #include "ui/dialogs/SimulationSettingsDialog.h"
@@ -27,6 +28,7 @@
 #include <QAction>
 #include <QSplitter>
 #include <QVBoxLayout>
+#include <QHBoxLayout>
 #include <QLabel>
 #include <QMessageBox>
 #include <QFileDialog>
@@ -34,6 +36,8 @@
 #include <QSettings>
 #include <QToolButton>
 #include <QFileInfo>
+#include <QFrame>
+#include <QGraphicsDropShadowEffect>
 
 namespace CounterUAS {
 
@@ -76,10 +80,15 @@ MainWindow::~MainWindow() {
 void MainWindow::setupUI() {
     // Central widget with map/PPI and video
     QWidget* centralWidget = new QWidget(this);
+    centralWidget->setObjectName("centralWidget");
+    
     QSplitter* mainSplitter = new QSplitter(Qt::Horizontal, centralWidget);
+    mainSplitter->setHandleWidth(4);
+    mainSplitter->setChildrenCollapsible(false);
     
     // Create stacked widget for map/PPI display switching
     m_displayStack = new QStackedWidget(this);
+    m_displayStack->setObjectName("displayStack");
     
     // Map widget
     m_mapWidget = new MapWidget(this);
@@ -92,26 +101,85 @@ void MainWindow::setupUI() {
     // Start with PPI display as default
     m_displayStack->setCurrentWidget(m_ppiWidget);
     
-    mainSplitter->addWidget(m_displayStack);
+    // Container for display stack with styled border
+    QWidget* displayContainer = new QWidget(this);
+    displayContainer->setObjectName("displayContainer");
+    displayContainer->setStyleSheet(
+        "#displayContainer {"
+        "   background-color: #0d1117;"
+        "   border: 1px solid #30363d;"
+        "   border-radius: 8px;"
+        "}"
+    );
+    QVBoxLayout* displayLayout = new QVBoxLayout(displayContainer);
+    displayLayout->setContentsMargins(2, 2, 2, 2);
+    displayLayout->addWidget(m_displayStack);
     
-    // Simplified Video panel with Day/Night cameras only
+    mainSplitter->addWidget(displayContainer);
+    
+    // Modern Video panel with Day/Night cameras
     QWidget* videoPanel = new QWidget(this);
-    videoPanel->setStyleSheet("background-color: #1a1a1a;");
-    QVBoxLayout* videoLayout = new QVBoxLayout(videoPanel);
-    videoLayout->setContentsMargins(4, 4, 4, 4);
-    videoLayout->setSpacing(4);
+    videoPanel->setObjectName("videoPanel");
+    videoPanel->setStyleSheet(
+        "#videoPanel {"
+        "   background-color: #0d1117;"
+        "   border: 1px solid #30363d;"
+        "   border-radius: 8px;"
+        "}"
+    );
     
-    // Video panel header
-    QLabel* videoPanelLabel = new QLabel("CAMERA FEEDS", videoPanel);
-    videoPanelLabel->setStyleSheet("QLabel { color: #aaa; font-weight: bold; font-size: 12px; "
-                                   "padding: 4px; background-color: #2a2a2a; border-radius: 3px; }");
-    videoPanelLabel->setAlignment(Qt::AlignCenter);
-    videoLayout->addWidget(videoPanelLabel);
+    QVBoxLayout* videoLayout = new QVBoxLayout(videoPanel);
+    videoLayout->setContentsMargins(8, 8, 8, 8);
+    videoLayout->setSpacing(8);
+    
+    // Video panel header with icon
+    QWidget* videoHeaderWidget = new QWidget(videoPanel);
+    QHBoxLayout* videoHeaderLayout = new QHBoxLayout(videoHeaderWidget);
+    videoHeaderLayout->setContentsMargins(0, 0, 0, 0);
+    
+    QLabel* cameraIcon = new QLabel(videoHeaderWidget);
+    cameraIcon->setPixmap(QIcon(":/icons/camera.svg").pixmap(16, 16));
+    videoHeaderLayout->addWidget(cameraIcon);
+    
+    QLabel* videoPanelLabel = new QLabel("CAMERA FEEDS", videoHeaderWidget);
+    videoPanelLabel->setStyleSheet(
+        "QLabel {"
+        "   color: #00a8e8;"
+        "   font-weight: bold;"
+        "   font-size: 11px;"
+        "   letter-spacing: 1px;"
+        "}"
+    );
+    videoHeaderLayout->addWidget(videoPanelLabel);
+    videoHeaderLayout->addStretch();
+    
+    QWidget* headerContainer = new QWidget(videoPanel);
+    headerContainer->setStyleSheet(
+        "background: qlineargradient(x1:0, y1:0, x2:0, y2:1,"
+        "   stop:0 #21262d, stop:1 #161b22);"
+        "border: 1px solid #30363d;"
+        "border-radius: 6px;"
+        "padding: 6px 12px;"
+    );
+    QVBoxLayout* headerContainerLayout = new QVBoxLayout(headerContainer);
+    headerContainerLayout->setContentsMargins(8, 6, 8, 6);
+    headerContainerLayout->addWidget(videoHeaderWidget);
+    
+    videoLayout->addWidget(headerContainer);
     
     // Primary video display (shows selected camera)
     m_primaryVideoWidget = new VideoDisplayWidget(this);
     m_primaryVideoWidget->setMinimumSize(400, 300);
-    m_primaryVideoWidget->setStyleSheet("border: 2px solid #444; border-radius: 4px;");
+    m_primaryVideoWidget->setStyleSheet(
+        "VideoDisplayWidget {"
+        "   background-color: #000000;"
+        "   border: 2px solid #30363d;"
+        "   border-radius: 6px;"
+        "}"
+        "VideoDisplayWidget:hover {"
+        "   border-color: #1e3a5f;"
+        "}"
+    );
     videoLayout->addWidget(m_primaryVideoWidget, 3);
     
     // Day/Night camera grid
@@ -120,26 +188,114 @@ void MainWindow::setupUI() {
     videoLayout->addWidget(m_videoGridWidget, 2);
     
     mainSplitter->addWidget(videoPanel);
-    mainSplitter->setSizes({600, 450});
+    mainSplitter->setSizes({650, 400});
     
     QVBoxLayout* centralLayout = new QVBoxLayout(centralWidget);
-    centralLayout->setContentsMargins(0, 0, 0, 0);
+    centralLayout->setContentsMargins(8, 8, 8, 8);
+    centralLayout->setSpacing(0);
     centralLayout->addWidget(mainSplitter);
     
     setCentralWidget(centralWidget);
     
-    // Status bar with custom widgets
-    m_statusTrackCount = new QLabel("Tracks: 0", this);
-    m_statusThreatCount = new QLabel("Threats: 0", this);
-    m_statusSimStatus = new QLabel("Simulation: Stopped", this);
-    m_statusTime = new QLabel("", this);
+    // Modern status bar with styled widgets
+    setupStatusBar();
+}
+
+void MainWindow::setupStatusBar() {
+    // Create styled status bar widgets
+    auto createStatusWidget = [this](const QString& iconPath, const QString& text) -> QWidget* {
+        QWidget* container = new QWidget(this);
+        QHBoxLayout* layout = new QHBoxLayout(container);
+        layout->setContentsMargins(8, 2, 8, 2);
+        layout->setSpacing(6);
+        
+        if (!iconPath.isEmpty()) {
+            QLabel* icon = new QLabel(container);
+            icon->setPixmap(QIcon(iconPath).pixmap(14, 14));
+            layout->addWidget(icon);
+        }
+        
+        QLabel* label = new QLabel(text, container);
+        label->setStyleSheet("color: #8b949e; font-size: 11px;");
+        layout->addWidget(label);
+        
+        return container;
+    };
     
-    statusBar()->addWidget(m_statusTrackCount);
-    statusBar()->addWidget(new QLabel(" | ", this));
-    statusBar()->addWidget(m_statusThreatCount);
-    statusBar()->addWidget(new QLabel(" | ", this));
-    statusBar()->addWidget(m_statusSimStatus);
+    // Track count with icon
+    QWidget* trackWidget = new QWidget(this);
+    QHBoxLayout* trackLayout = new QHBoxLayout(trackWidget);
+    trackLayout->setContentsMargins(8, 2, 8, 2);
+    trackLayout->setSpacing(6);
+    QLabel* trackIcon = new QLabel(trackWidget);
+    trackIcon->setPixmap(QIcon(":/icons/tracks.svg").pixmap(14, 14));
+    trackLayout->addWidget(trackIcon);
+    m_statusTrackCount = new QLabel("Tracks: 0", trackWidget);
+    m_statusTrackCount->setStyleSheet("color: #00a8e8; font-weight: 500;");
+    trackLayout->addWidget(m_statusTrackCount);
+    statusBar()->addWidget(trackWidget);
+    
+    // Separator
+    QFrame* sep1 = new QFrame(this);
+    sep1->setFrameShape(QFrame::VLine);
+    sep1->setStyleSheet("background-color: #30363d;");
+    sep1->setFixedWidth(1);
+    statusBar()->addWidget(sep1);
+    
+    // Threat count with icon
+    QWidget* threatWidget = new QWidget(this);
+    QHBoxLayout* threatLayout = new QHBoxLayout(threatWidget);
+    threatLayout->setContentsMargins(8, 2, 8, 2);
+    threatLayout->setSpacing(6);
+    QLabel* threatIcon = new QLabel(threatWidget);
+    threatIcon->setPixmap(QIcon(":/icons/alert.svg").pixmap(14, 14));
+    threatLayout->addWidget(threatIcon);
+    m_statusThreatCount = new QLabel("Threats: 0", threatWidget);
+    m_statusThreatCount->setStyleSheet("color: #dc3545; font-weight: 500;");
+    threatLayout->addWidget(m_statusThreatCount);
+    statusBar()->addWidget(threatWidget);
+    
+    // Separator
+    QFrame* sep2 = new QFrame(this);
+    sep2->setFrameShape(QFrame::VLine);
+    sep2->setStyleSheet("background-color: #30363d;");
+    sep2->setFixedWidth(1);
+    statusBar()->addWidget(sep2);
+    
+    // Simulation status with icon
+    QWidget* simWidget = new QWidget(this);
+    QHBoxLayout* simLayout = new QHBoxLayout(simWidget);
+    simLayout->setContentsMargins(8, 2, 8, 2);
+    simLayout->setSpacing(6);
+    m_statusSimIndicator = new QLabel(simWidget);
+    m_statusSimIndicator->setFixedSize(10, 10);
+    m_statusSimIndicator->setStyleSheet(
+        "background-color: #6c757d;"
+        "border-radius: 5px;"
+    );
+    simLayout->addWidget(m_statusSimIndicator);
+    m_statusSimStatus = new QLabel("Simulation: Stopped", simWidget);
+    m_statusSimStatus->setStyleSheet("color: #8b949e;");
+    simLayout->addWidget(m_statusSimStatus);
+    statusBar()->addWidget(simWidget);
+    
+    // Time display on the right
+    m_statusTime = new QLabel("", this);
+    m_statusTime->setStyleSheet(
+        "color: #e6edf3;"
+        "font-family: 'Consolas', 'Monaco', monospace;"
+        "font-size: 12px;"
+        "padding: 0 12px;"
+    );
     statusBar()->addPermanentWidget(m_statusTime);
+    
+    statusBar()->setStyleSheet(
+        "QStatusBar {"
+        "   background-color: #161b22;"
+        "   border-top: 1px solid #30363d;"
+        "   min-height: 28px;"
+        "}"
+    );
     
     statusBar()->showMessage("Ready");
 }
@@ -242,27 +398,42 @@ void MainWindow::createViewMenu(QMenu* viewMenu) {
 
 void MainWindow::setupToolBar() {
     m_mainToolBar = addToolBar("Main");
-    m_mainToolBar->setIconSize(QSize(24, 24));
+    m_mainToolBar->setObjectName("mainToolBar");
+    m_mainToolBar->setIconSize(QSize(20, 20));
     m_mainToolBar->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+    m_mainToolBar->setMovable(false);
     
-    // Grouped Simulation Controls
+    // Grouped Simulation Controls with icons
     QToolButton* simControlBtn = new QToolButton(this);
-    simControlBtn->setText("Simulation");
+    simControlBtn->setText(" Simulation");
+    simControlBtn->setIcon(QIcon(":/icons/play.svg"));
     simControlBtn->setPopupMode(QToolButton::MenuButtonPopup);
     simControlBtn->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+    simControlBtn->setToolTip("Simulation Controls");
     
     QMenu* simMenu = new QMenu(simControlBtn);
-    QAction* startAction = simMenu->addAction("Start Simulation");
+    simMenu->setStyleSheet(ThemeManager::instance().styleSheet("menu"));
+    
+    QAction* startAction = simMenu->addAction(QIcon(":/icons/play.svg"), "Start Simulation");
+    startAction->setShortcut(Qt::Key_F5);
     connect(startAction, &QAction::triggered, this, &MainWindow::startSimulation);
-    QAction* stopAction = simMenu->addAction("Stop Simulation");
+    
+    QAction* stopAction = simMenu->addAction(QIcon(":/icons/stop.svg"), "Stop Simulation");
+    stopAction->setShortcut(Qt::Key_F6);
     connect(stopAction, &QAction::triggered, this, &MainWindow::stopSimulation);
-    QAction* pauseAction = simMenu->addAction("Pause/Resume");
+    
+    QAction* pauseAction = simMenu->addAction(QIcon(":/icons/pause.svg"), "Pause/Resume");
+    pauseAction->setShortcut(Qt::Key_F7);
     connect(pauseAction, &QAction::triggered, this, &MainWindow::pauseSimulation);
+    
     simMenu->addSeparator();
-    QAction* resetAction = simMenu->addAction("Reset Simulation");
+    
+    QAction* resetAction = simMenu->addAction(QIcon(":/icons/reset.svg"), "Reset Simulation");
     connect(resetAction, &QAction::triggered, this, &MainWindow::resetSimulation);
+    
     simMenu->addSeparator();
-    QAction* settingsAction = simMenu->addAction("Settings...");
+    
+    QAction* settingsAction = simMenu->addAction(QIcon(":/icons/settings.svg"), "Settings...");
     connect(settingsAction, &QAction::triggered, this, &MainWindow::onSimulationSettings);
     
     simControlBtn->setMenu(simMenu);
@@ -271,32 +442,40 @@ void MainWindow::setupToolBar() {
     
     m_mainToolBar->addSeparator();
     
-    // Grouped Map/View Controls
+    // Grouped Map/View Controls with icons
     QToolButton* viewControlBtn = new QToolButton(this);
-    viewControlBtn->setText("View");
+    viewControlBtn->setText(" View");
+    viewControlBtn->setIcon(QIcon(":/icons/map.svg"));
     viewControlBtn->setPopupMode(QToolButton::MenuButtonPopup);
     viewControlBtn->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+    viewControlBtn->setToolTip("View Controls");
     
     QMenu* viewMenu = new QMenu(viewControlBtn);
-    QAction* zoomInAction = viewMenu->addAction("Zoom In");
+    
+    QAction* zoomInAction = viewMenu->addAction(QIcon(":/icons/zoom-in.svg"), "Zoom In");
     connect(zoomInAction, &QAction::triggered, this, [this]() { 
-        // Zoom in on both map and PPI - map zoom triggers sync via signal
         m_mapWidget->setZoom(m_mapWidget->zoom() + 1); 
     });
-    QAction* zoomOutAction = viewMenu->addAction("Zoom Out");
+    
+    QAction* zoomOutAction = viewMenu->addAction(QIcon(":/icons/zoom-out.svg"), "Zoom Out");
     connect(zoomOutAction, &QAction::triggered, this, [this]() { 
-        // Zoom out on both map and PPI - map zoom triggers sync via signal
         m_mapWidget->setZoom(m_mapWidget->zoom() - 1); 
     });
-    QAction* centerAction = viewMenu->addAction("Center on Base");
+    
+    QAction* centerAction = viewMenu->addAction(QIcon(":/icons/center.svg"), "Center on Base");
     connect(centerAction, &QAction::triggered, this, [this]() { 
         GeoPosition basePos;
         basePos.latitude = 34.0522;
         basePos.longitude = -118.2437;
         basePos.altitude = 100.0;
-        // Center both map and PPI - map center triggers sync via signal
         m_mapWidget->setCenter(basePos); 
     });
+    
+    viewMenu->addSeparator();
+    
+    QAction* fullscreenAction = viewMenu->addAction(QIcon(":/icons/fullscreen.svg"), "Full Screen Video");
+    fullscreenAction->setShortcut(Qt::Key_F11);
+    connect(fullscreenAction, &QAction::triggered, this, &MainWindow::toggleFullScreenVideo);
     
     viewControlBtn->setMenu(viewMenu);
     viewControlBtn->setDefaultAction(zoomInAction);
@@ -304,19 +483,26 @@ void MainWindow::setupToolBar() {
     
     m_mainToolBar->addSeparator();
     
-    // Grouped Recording Controls
+    // Grouped Recording Controls with icons
     QToolButton* recordBtn = new QToolButton(this);
-    recordBtn->setText("Record");
+    recordBtn->setText(" Record");
+    recordBtn->setIcon(QIcon(":/icons/camera.svg"));
     recordBtn->setPopupMode(QToolButton::MenuButtonPopup);
     recordBtn->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+    recordBtn->setToolTip("Recording Controls");
     
     QMenu* recordMenu = new QMenu(recordBtn);
-    QAction* recordAllAction = recordMenu->addAction("Start Recording All");
+    
+    QAction* recordAllAction = recordMenu->addAction(QIcon(":/icons/record.svg"), "Start Recording All");
     connect(recordAllAction, &QAction::triggered, this, &MainWindow::onStartAllRecording);
-    QAction* stopRecordAction = recordMenu->addAction("Stop All Recording");
+    
+    QAction* stopRecordAction = recordMenu->addAction(QIcon(":/icons/stop.svg"), "Stop All Recording");
     connect(stopRecordAction, &QAction::triggered, this, &MainWindow::onStopAllRecording);
+    
     recordMenu->addSeparator();
-    QAction* snapshotAction = recordMenu->addAction("Take Snapshot");
+    
+    QAction* snapshotAction = recordMenu->addAction(QIcon(":/icons/snapshot.svg"), "Take Snapshot");
+    snapshotAction->setShortcut(Qt::Key_F8);
     connect(snapshotAction, &QAction::triggered, this, &MainWindow::onTakeSnapshot);
     
     recordBtn->setMenu(recordMenu);
@@ -325,12 +511,34 @@ void MainWindow::setupToolBar() {
     
     // Secondary toolbar for simulation status display
     m_simulationToolBar = addToolBar("Simulation Status");
+    m_simulationToolBar->setObjectName("simStatusToolBar");
     m_simulationToolBar->setToolButtonStyle(Qt::ToolButtonTextOnly);
+    m_simulationToolBar->setMovable(false);
     
-    QLabel* scenarioLabel = new QLabel(" Scenario: Default ", this);
-    scenarioLabel->setStyleSheet("QLabel { padding: 4px; background-color: #2a2a2a; "
-                                  "border-radius: 3px; color: #aaa; }");
-    m_simulationToolBar->addWidget(scenarioLabel);
+    // Scenario indicator widget
+    QWidget* scenarioWidget = new QWidget(this);
+    QHBoxLayout* scenarioLayout = new QHBoxLayout(scenarioWidget);
+    scenarioLayout->setContentsMargins(8, 4, 8, 4);
+    scenarioLayout->setSpacing(6);
+    
+    QLabel* scenarioIcon = new QLabel(scenarioWidget);
+    scenarioIcon->setPixmap(QIcon(":/icons/target.svg").pixmap(14, 14));
+    scenarioLayout->addWidget(scenarioIcon);
+    
+    QLabel* scenarioLabel = new QLabel("Scenario: Default", scenarioWidget);
+    scenarioLabel->setStyleSheet(
+        "color: #8b949e;"
+        "font-size: 11px;"
+    );
+    scenarioLayout->addWidget(scenarioLabel);
+    
+    scenarioWidget->setStyleSheet(
+        "background-color: #161b22;"
+        "border: 1px solid #30363d;"
+        "border-radius: 4px;"
+    );
+    
+    m_simulationToolBar->addWidget(scenarioWidget);
 }
 
 void MainWindow::setupPPIToolBar() {
@@ -779,6 +987,14 @@ void MainWindow::startSimulation() {
     
     m_simulationRunning = true;
     
+    // Update status bar indicator
+    m_statusSimStatus->setText("Simulation: Running");
+    m_statusSimStatus->setStyleSheet("color: #28a745; font-weight: 500;");
+    m_statusSimIndicator->setStyleSheet(
+        "background-color: #28a745;"
+        "border-radius: 5px;"
+    );
+    
     statusBar()->showMessage("Simulation started - All systems active");
     Logger::instance().info("MainWindow", "Simulation started with full environment");
 }
@@ -810,6 +1026,14 @@ void MainWindow::stopSimulation() {
     m_simulationRunning = false;
     m_simulationPaused = false;
     
+    // Update status bar indicator
+    m_statusSimStatus->setText("Simulation: Stopped");
+    m_statusSimStatus->setStyleSheet("color: #8b949e;");
+    m_statusSimIndicator->setStyleSheet(
+        "background-color: #6c757d;"
+        "border-radius: 5px;"
+    );
+    
     statusBar()->showMessage("Simulation stopped");
     Logger::instance().info("MainWindow", "Simulation stopped");
 }
@@ -820,10 +1044,28 @@ void MainWindow::pauseSimulation() {
     if (m_simulationPaused) {
         m_simulationManager->resume();
         m_simulationPaused = false;
+        
+        // Update status bar indicator
+        m_statusSimStatus->setText("Simulation: Running");
+        m_statusSimStatus->setStyleSheet("color: #28a745; font-weight: 500;");
+        m_statusSimIndicator->setStyleSheet(
+            "background-color: #28a745;"
+            "border-radius: 5px;"
+        );
+        
         statusBar()->showMessage("Simulation resumed");
     } else {
         m_simulationManager->pause();
         m_simulationPaused = true;
+        
+        // Update status bar indicator
+        m_statusSimStatus->setText("Simulation: Paused");
+        m_statusSimStatus->setStyleSheet("color: #ffa500; font-weight: 500;");
+        m_statusSimIndicator->setStyleSheet(
+            "background-color: #ffa500;"
+            "border-radius: 5px;"
+        );
+        
         statusBar()->showMessage("Simulation paused");
     }
 }
