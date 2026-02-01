@@ -1,4 +1,5 @@
 #include "ui/VideoGridWidget.h"
+#include <QIcon>
 #include <QLabel>
 
 namespace CounterUAS {
