@@ -9,6 +9,7 @@
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QCache>
+#include <QMenu>
 #include "core/Track.h"
 
 namespace CounterUAS {
@@ -138,6 +139,14 @@ public:
     void setShowTrackHistory(bool show);
     bool showTrackHistory() const { return m_showTrackHistory; }
     void setTrackHistoryLength(int seconds);
+    void setTrackHistoryPoints(const QString& trackId, int points);
+    int trackHistoryPoints(const QString& trackId) const;
+    
+    // Track focus (magnifier)
+    void focusTrack(const QString& trackId);
+    void clearFocus();
+    QString focusedTrack() const { return m_focusedTrackId; }
+    bool isTrackFocused() const { return !m_focusedTrackId.isEmpty(); }
     
     // Defended area
     void setDefendedAreaVisible(bool visible);
@@ -199,6 +208,10 @@ signals:
     void centerChanged(const GeoPosition& pos);
     void sweepAngleChanged(double angle);
     void displayModeChanged(PPIDisplayMode mode);
+    void engageTrackRequested(const QString& trackId);
+    void deleteTrackRequested(const QString& trackId);
+    void trackFocused(const QString& trackId);
+    void trackHistoryPointsChanged(const QString& trackId, int points);
     
 protected:
     void paintEvent(QPaintEvent* event) override;
@@ -208,6 +221,8 @@ protected:
     void mouseMoveEvent(QMouseEvent* event) override;
     void mouseReleaseEvent(QMouseEvent* event) override;
     void resizeEvent(QResizeEvent* event) override;
+    void contextMenuEvent(QContextMenuEvent* event) override;
+    bool event(QEvent* event) override;
     
 private slots:
     void updateSweep();
@@ -247,6 +262,9 @@ private:
     QColor colorForClassification(TrackClassification cls) const;
     QColor colorForThreatLevel(int level) const;
     QString findTrackAtPoint(const QPointF& point) const;
+    QString buildTrackTooltip(Track* track) const;
+    void showTrackContextMenu(const QPoint& globalPos, const QString& trackId);
+    void createHistoryPointsSubMenu(QMenu* menu, const QString& trackId);
     
     // Track manager
     TrackManager* m_trackManager = nullptr;
@@ -286,6 +304,11 @@ private:
     bool m_showTrackHistory = true;
     int m_trackHistorySeconds = 30;
     QTimer* m_historyTimer;
+    QHash<QString, int> m_trackHistoryPoints;  // Per-track history points
+    
+    // Track focus (magnifier)
+    QString m_focusedTrackId;
+    double m_focusZoomFactor = 2.5;  // Zoom factor when focused
     
     // Defended area
     bool m_showDefendedArea = true;

@@ -4,10 +4,14 @@
 #include <QPainter>
 #include <QMouseEvent>
 #include <QWheelEvent>
+#include <QContextMenuEvent>
+#include <QToolTip>
 #include <QtMath>
 #include <QDateTime>
 #include <QUrlQuery>
 #include <QImageReader>
+#include <QMenu>
+#include <QAction>
 
 namespace CounterUAS {
 
@@ -221,6 +225,38 @@ void PPIDisplayWidget::setShowTrackHistory(bool show) {
 
 void PPIDisplayWidget::setTrackHistoryLength(int seconds) {
     m_trackHistorySeconds = qBound(5, seconds, 300);
+}
+
+void PPIDisplayWidget::setTrackHistoryPoints(const QString& trackId, int points) {
+    m_trackHistoryPoints[trackId] = points;
+    emit trackHistoryPointsChanged(trackId, points);
+    update();
+}
+
+int PPIDisplayWidget::trackHistoryPoints(const QString& trackId) const {
+    return m_trackHistoryPoints.value(trackId, -1);  // -1 means use default
+}
+
+void PPIDisplayWidget::focusTrack(const QString& trackId) {
+    if (m_tracks.contains(trackId)) {
+        m_focusedTrackId = trackId;
+        
+        // Center view on focused track
+        Track* track = m_tracks[trackId];
+        if (track) {
+            setCenter(track->position());
+            // Zoom in for better focus
+            setRangeScale(m_rangeScaleM / m_focusZoomFactor);
+        }
+        
+        emit trackFocused(trackId);
+        update();
+    }
+}
+
+void PPIDisplayWidget::clearFocus() {
+    m_focusedTrackId.clear();
+    update();
 }
 
 void PPIDisplayWidget::setDefendedAreaVisible(bool visible) {
@@ -520,8 +556,24 @@ void PPIDisplayWidget::paintEvent(QPaintEvent* event) {
 }
 
 void PPIDisplayWidget::mousePressEvent(QMouseEvent* event) {
-    // Right-click or middle-click always starts view panning
-    if (event->button() == Qt::RightButton || event->button() == Qt::MiddleButton) {
+    // Right-click: check if on track for context menu, otherwise start panning
+    if (event->button() == Qt::RightButton) {
+        QString trackId = findTrackAtPoint(event->pos());
+        if (!trackId.isEmpty()) {
+            // Don't start panning - context menu will be shown
+            event->accept();
+            return;
+        }
+        // Not on track - start view panning
+        m_mapPanning = true;
+        m_lastPanPos = event->pos();
+        setCursor(Qt::ClosedHandCursor);
+        event->accept();
+        return;
+    }
+    
+    // Middle-click always starts view panning
+    if (event->button() == Qt::MiddleButton) {
         m_mapPanning = true;
         m_lastPanPos = event->pos();
         setCursor(Qt::ClosedHandCursor);
@@ -897,8 +949,11 @@ void PPIDisplayWidget::drawTrackSymbol(QPainter& painter, Track* track, const QP
         color = color.lighter(130);
     }
     
-    int size = selected ? 14 : 10;
-    int penWidth = selected ? 3 : 2;
+    // Check if this track is focused
+    bool isFocused = (track->trackId() == m_focusedTrackId);
+    
+    int size = (selected || isFocused) ? 14 : 10;
+    int penWidth = (selected || isFocused) ? 3 : 2;
     
     painter.setPen(QPen(color, penWidth));
     painter.setBrush(Qt::NoBrush);
@@ -944,6 +999,19 @@ void PPIDisplayWidget::drawTrackSymbol(QPainter& painter, Track* track, const QP
         painter.drawEllipse(pos, size + 5, size + 5);
     }
     
+    // Focus indicator (magnifier effect)
+    if (isFocused) {
+        painter.setPen(QPen(QColor(0, 200, 255), 2, Qt::DotLine));
+        painter.setBrush(Qt::NoBrush);
+        painter.drawEllipse(pos, size + 12, size + 12);
+        
+        // Draw small magnifier icon
+        painter.setPen(QPen(QColor(0, 200, 255), 2));
+        QPointF iconPos(pos.x() + size + 8, pos.y() - size - 8);
+        painter.drawEllipse(iconPos, 6, 6);
+        painter.drawLine(iconPos + QPointF(4, 4), iconPos + QPointF(8, 8));
+    }
+    
     // Engagement indicator
     if (track->isEngaged()) {
         painter.setPen(QPen(Qt::red, 2));
@@ -955,54 +1023,59 @@ void PPIDisplayWidget::drawTrackHistory(QPainter& painter, Track* track) {
     QString trackId = track->trackId();
     if (!m_trackHistory.contains(trackId)) return;
     
-    const QList<TrackHistoryPoint>& history = m_trackHistory[trackId];
-    if (history.size() < 2) return;
+    const QList<TrackHistoryPoint>& fullHistory = m_trackHistory[trackId];
+    if (fullHistory.size() < 2) return;
+    
+    // Get per-track history points limit, or use full history if not set
+    int maxPoints = m_trackHistoryPoints.value(trackId, -1);
+    int startIdx = 0;
+    if (maxPoints > 0 && fullHistory.size() > maxPoints) {
+        startIdx = fullHistory.size() - maxPoints;
+    }
     
     QColor color = colorForClassification(track->classification());
     QPointF center = screenCenter();
     
-    for (int i = 1; i < history.size(); ++i) {
-        const TrackHistoryPoint& pt1 = history[i - 1];
-        const TrackHistoryPoint& pt2 = history[i];
+    // Highlight focused track with brighter history
+    bool isFocused = (trackId == m_focusedTrackId);
+    
+    for (int i = qMax(1, startIdx); i < fullHistory.size(); ++i) {
+        const TrackHistoryPoint& pt1 = fullHistory[i - 1];
+        const TrackHistoryPoint& pt2 = fullHistory[i];
         
         QColor lineColor = color;
-        lineColor.setAlphaF(pt1.intensity * 0.5);
+        double alpha = pt1.intensity * (isFocused ? 0.8 : 0.5);
+        lineColor.setAlphaF(alpha);
         
-        painter.setPen(QPen(lineColor, 1));
+        painter.setPen(QPen(lineColor, isFocused ? 2 : 1));
         painter.drawLine(center + pt1.position, center + pt2.position);
     }
     
     // Draw dots at history points
-    for (const TrackHistoryPoint& pt : history) {
+    int pointsDrawn = 0;
+    for (int i = fullHistory.size() - 1; i >= startIdx && (maxPoints < 0 || pointsDrawn < maxPoints); --i) {
+        const TrackHistoryPoint& pt = fullHistory[i];
         QColor dotColor = color;
-        dotColor.setAlphaF(pt.intensity * 0.7);
+        double alpha = pt.intensity * (isFocused ? 0.9 : 0.7);
+        dotColor.setAlphaF(alpha);
         painter.setPen(Qt::NoPen);
         painter.setBrush(dotColor);
-        painter.drawEllipse(center + pt.position, 2, 2);
+        painter.drawEllipse(center + pt.position, isFocused ? 3 : 2, isFocused ? 3 : 2);
+        pointsDrawn++;
     }
 }
 
 void PPIDisplayWidget::drawTrackLabel(QPainter& painter, Track* track, const QPointF& pos) {
     QColor color = colorForClassification(track->classification());
     
-    QString label = track->trackId();
-    
-    // Add speed if available
-    VelocityVector vel = track->velocity();
-    double speed = vel.speed();
-    if (speed > 1.0) {
-        label += QString(" %1m/s").arg(speed, 0, 'f', 0);
-    }
-    
-    // Add altitude
-    double alt = track->position().altitude;
-    if (alt > 0) {
-        label += QString(" %1m").arg(alt, 0, 'f', 0);
-    }
+    // Keep label short and clean: just "T" + track number
+    QString trackId = track->trackId();
+    QString label = "T" + trackId;
     
     painter.setPen(color.lighter(120));
     QFont font = painter.font();
     font.setPointSize(8);
+    font.setBold(track->trackId() == m_focusedTrackId);  // Bold if focused
     painter.setFont(font);
     
     painter.drawText(QPointF(pos.x() + 15, pos.y() + 5), label);
@@ -1346,6 +1419,188 @@ QString PPIDisplayWidget::findTrackAtPoint(const QPointF& point) const {
     }
     
     return QString();
+}
+
+QString PPIDisplayWidget::buildTrackTooltip(Track* track) const {
+    if (!track) return QString();
+    
+    QString tooltip;
+    tooltip += QString("<b>Track %1</b><br>").arg(track->trackId());
+    tooltip += QString("<hr>");
+    
+    // Classification
+    tooltip += QString("<b>Classification:</b> %1<br>").arg(track->classificationString());
+    
+    // Threat level
+    tooltip += QString("<b>Threat Level:</b> %1/5<br>").arg(track->threatLevel());
+    
+    // State
+    tooltip += QString("<b>State:</b> %1<br>").arg(track->stateString());
+    
+    // Position
+    GeoPosition pos = track->position();
+    tooltip += QString("<b>Position:</b><br>");
+    tooltip += QString("  Lat: %1°<br>").arg(pos.latitude, 0, 'f', 5);
+    tooltip += QString("  Lon: %1°<br>").arg(pos.longitude, 0, 'f', 5);
+    tooltip += QString("  Alt: %1 m<br>").arg(pos.altitude, 0, 'f', 1);
+    
+    // Velocity
+    VelocityVector vel = track->velocity();
+    double speed = vel.speed();
+    double heading = vel.heading();
+    if (speed > 0.5) {
+        tooltip += QString("<b>Velocity:</b><br>");
+        tooltip += QString("  Speed: %1 m/s<br>").arg(speed, 0, 'f', 1);
+        tooltip += QString("  Heading: %1°<br>").arg(heading, 0, 'f', 1);
+        double climbRate = vel.climbRate();
+        if (qAbs(climbRate) > 0.5) {
+            tooltip += QString("  Climb: %1 m/s<br>").arg(climbRate, 0, 'f', 1);
+        }
+    }
+    
+    // Distance from center
+    double distance = CoordinateUtils::haversineDistance(m_center, pos);
+    double bearing = CoordinateUtils::bearing(m_center, pos);
+    tooltip += QString("<b>Range:</b> %1 m<br>").arg(distance, 0, 'f', 0);
+    tooltip += QString("<b>Bearing:</b> %1°<br>").arg(bearing, 0, 'f', 1);
+    
+    // Engaged status
+    if (track->isEngaged()) {
+        tooltip += QString("<b style='color:red;'>ENGAGED</b><br>");
+    }
+    
+    // Track age
+    qint64 ageMs = track->trackAge();
+    int ageSec = ageMs / 1000;
+    tooltip += QString("<b>Track Age:</b> %1s").arg(ageSec);
+    
+    return tooltip;
+}
+
+void PPIDisplayWidget::showTrackContextMenu(const QPoint& globalPos, const QString& trackId) {
+    if (trackId.isEmpty() || !m_tracks.contains(trackId)) return;
+    
+    Track* track = m_tracks[trackId];
+    if (!track) return;
+    
+    QMenu contextMenu(this);
+    contextMenu.setStyleSheet(
+        "QMenu { background-color: #2d2d2d; color: white; border: 1px solid #555; }"
+        "QMenu::item { padding: 5px 20px; }"
+        "QMenu::item:selected { background-color: #4a4a4a; }"
+        "QMenu::separator { height: 1px; background: #555; margin: 3px 0; }"
+    );
+    
+    // Track info header (non-clickable)
+    QAction* headerAction = contextMenu.addAction(QString("Track T%1").arg(trackId));
+    headerAction->setEnabled(false);
+    QFont headerFont = headerAction->font();
+    headerFont.setBold(true);
+    headerAction->setFont(headerFont);
+    
+    contextMenu.addSeparator();
+    
+    // Engage action
+    QAction* engageAction = contextMenu.addAction("Engage");
+    engageAction->setIcon(QIcon(":/icons/engage.svg"));
+    if (track->isEngaged()) {
+        engageAction->setText("Engaged (Active)");
+        engageAction->setEnabled(false);
+    }
+    
+    // Focus action (magnifier)
+    QAction* focusAction = contextMenu.addAction("Focus");
+    focusAction->setIcon(QIcon(":/icons/zoom.svg"));
+    if (m_focusedTrackId == trackId) {
+        focusAction->setText("Unfocus");
+    }
+    
+    contextMenu.addSeparator();
+    
+    // History points submenu
+    QMenu* historyMenu = contextMenu.addMenu("Set History Points");
+    createHistoryPointsSubMenu(historyMenu, trackId);
+    
+    contextMenu.addSeparator();
+    
+    // Delete action
+    QAction* deleteAction = contextMenu.addAction("Delete Track");
+    deleteAction->setIcon(QIcon(":/icons/delete.svg"));
+    
+    // Execute menu
+    QAction* selectedAction = contextMenu.exec(globalPos);
+    
+    if (selectedAction == engageAction && !track->isEngaged()) {
+        emit engageTrackRequested(trackId);
+    } else if (selectedAction == focusAction) {
+        if (m_focusedTrackId == trackId) {
+            clearFocus();
+        } else {
+            focusTrack(trackId);
+        }
+    } else if (selectedAction == deleteAction) {
+        emit deleteTrackRequested(trackId);
+    }
+}
+
+void PPIDisplayWidget::createHistoryPointsSubMenu(QMenu* menu, const QString& trackId) {
+    if (!menu) return;
+    
+    int currentPoints = m_trackHistoryPoints.value(trackId, -1);
+    
+    // Add "Default" option
+    QAction* defaultAction = menu->addAction("Default");
+    defaultAction->setCheckable(true);
+    defaultAction->setChecked(currentPoints == -1);
+    connect(defaultAction, &QAction::triggered, this, [this, trackId]() {
+        m_trackHistoryPoints.remove(trackId);
+        emit trackHistoryPointsChanged(trackId, -1);
+        update();
+    });
+    
+    menu->addSeparator();
+    
+    // Add fixed point options
+    QList<int> pointOptions = {5, 10, 15, 20, 25, 30, 50};
+    for (int points : pointOptions) {
+        QAction* action = menu->addAction(QString("%1 points").arg(points));
+        action->setCheckable(true);
+        action->setChecked(currentPoints == points);
+        connect(action, &QAction::triggered, this, [this, trackId, points]() {
+            setTrackHistoryPoints(trackId, points);
+        });
+    }
+}
+
+void PPIDisplayWidget::contextMenuEvent(QContextMenuEvent* event) {
+    QString trackId = findTrackAtPoint(event->pos());
+    
+    if (!trackId.isEmpty()) {
+        showTrackContextMenu(event->globalPos(), trackId);
+        event->accept();
+    } else {
+        // Let parent handle right-click for panning (don't show context menu for empty space)
+        event->ignore();
+    }
+}
+
+bool PPIDisplayWidget::event(QEvent* event) {
+    if (event->type() == QEvent::ToolTip) {
+        QHelpEvent* helpEvent = static_cast<QHelpEvent*>(event);
+        QString trackId = findTrackAtPoint(helpEvent->pos());
+        
+        if (!trackId.isEmpty() && m_tracks.contains(trackId)) {
+            Track* track = m_tracks[trackId];
+            if (track) {
+                QString tooltip = buildTrackTooltip(track);
+                QToolTip::showText(helpEvent->globalPos(), tooltip, this);
+            }
+        } else {
+            QToolTip::hideText();
+        }
+        return true;
+    }
+    return QWidget::event(event);
 }
 
 } // namespace CounterUAS
