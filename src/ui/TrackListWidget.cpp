@@ -24,16 +24,40 @@ TrackListWidget::TrackListWidget(TrackManager* trackManager, QWidget* parent)
     setMinimumSize(300, 120);
     
     QVBoxLayout* layout = new QVBoxLayout(this);
-    layout->setContentsMargins(4, 4, 4, 4);
-    layout->setSpacing(4);
+    layout->setContentsMargins(8, 8, 8, 8);
+    layout->setSpacing(8);
     
-    // Add title label
-    QLabel* titleLabel = new QLabel("Active Tracks", this);
-    titleLabel->setStyleSheet("QLabel { font-weight: bold; font-size: 12px; color: #ccc; "
-                             "background-color: #2a2a2a; padding: 4px; border-radius: 3px; }");
-    titleLabel->setAlignment(Qt::AlignCenter);
-    layout->addWidget(titleLabel);
+    // Header with icon
+    QWidget* headerWidget = new QWidget(this);
+    QHBoxLayout* headerLayout = new QHBoxLayout(headerWidget);
+    headerLayout->setContentsMargins(0, 0, 0, 0);
     
+    QLabel* trackIcon = new QLabel(headerWidget);
+    trackIcon->setPixmap(QIcon(":/icons/tracks.svg").pixmap(16, 16));
+    headerLayout->addWidget(trackIcon);
+    
+    QLabel* titleLabel = new QLabel("ACTIVE TRACKS", headerWidget);
+    titleLabel->setStyleSheet(
+        "color: #00a8e8;"
+        "font-weight: bold;"
+        "font-size: 11px;"
+        "letter-spacing: 1px;"
+    );
+    headerLayout->addWidget(titleLabel);
+    headerLayout->addStretch();
+    
+    QWidget* headerContainer = new QWidget(this);
+    headerContainer->setStyleSheet(
+        "background: qlineargradient(x1:0, y1:0, x2:0, y2:1,"
+        "   stop:0 #21262d, stop:1 #161b22);"
+        "border: 1px solid #30363d;"
+        "border-radius: 4px;"
+    );
+    QVBoxLayout* headerContainerLayout = new QVBoxLayout(headerContainer);
+    headerContainerLayout->setContentsMargins(10, 6, 10, 6);
+    headerContainerLayout->addWidget(headerWidget);
+    
+    layout->addWidget(headerContainer);
     layout->addWidget(m_tableView);
     
     m_model->setHorizontalHeaderLabels({"ID", "Class", "Threat", "Range", "Azimuth", "Elevation", "Velocity", "Status"});
@@ -42,6 +66,7 @@ TrackListWidget::TrackListWidget(TrackManager* trackManager, QWidget* parent)
     m_tableView->setSelectionMode(QAbstractItemView::SingleSelection);
     m_tableView->setAlternatingRowColors(true);
     m_tableView->verticalHeader()->hide();
+    m_tableView->setShowGrid(false);
     
     // Configure header for better column sizing
     QHeaderView* header = m_tableView->horizontalHeader();
@@ -54,22 +79,41 @@ TrackListWidget::TrackListWidget(TrackManager* trackManager, QWidget* parent)
     header->setSectionResizeMode(6, QHeaderView::ResizeToContents);  // Velocity
     header->setSectionResizeMode(7, QHeaderView::Stretch);           // Status
     
-    // Style the table
+    // Modern table styling
     m_tableView->setStyleSheet(
-        "QTableView { "
-        "   background-color: #1a1a1a; "
-        "   alternate-background-color: #252525; "
-        "   color: #ddd; "
-        "   gridline-color: #333; "
-        "   selection-background-color: #3a6090; "
-        "   selection-color: white; "
-        "} "
-        "QHeaderView::section { "
-        "   background-color: #333; "
-        "   color: #ccc; "
-        "   padding: 4px; "
-        "   border: 1px solid #444; "
-        "} "
+        "QTableView {"
+        "   background-color: #0d1117;"
+        "   alternate-background-color: #161b22;"
+        "   color: #e6edf3;"
+        "   border: 1px solid #30363d;"
+        "   border-radius: 6px;"
+        "   gridline-color: transparent;"
+        "   selection-background-color: #1e3a5f;"
+        "   selection-color: #ffffff;"
+        "   outline: none;"
+        "}"
+        "QTableView::item {"
+        "   padding: 8px 6px;"
+        "   border-bottom: 1px solid #21262d;"
+        "}"
+        "QTableView::item:hover {"
+        "   background-color: #21262d;"
+        "}"
+        "QTableView::item:selected {"
+        "   background-color: #1e3a5f;"
+        "   color: #ffffff;"
+        "}"
+        "QHeaderView::section {"
+        "   background: qlineargradient(x1:0, y1:0, x2:0, y2:1,"
+        "       stop:0 #21262d, stop:1 #161b22);"
+        "   color: #e6edf3;"
+        "   padding: 10px 8px;"
+        "   border: none;"
+        "   border-right: 1px solid #30363d;"
+        "   border-bottom: 1px solid #30363d;"
+        "   font-weight: 600;"
+        "   font-size: 11px;"
+        "}"
     );
     
     connect(m_tableView->selectionModel(), &QItemSelectionModel::selectionChanged,

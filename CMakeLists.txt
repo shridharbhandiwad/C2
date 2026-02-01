@@ -163,6 +163,7 @@ set(UI_SOURCES
     src/ui/EffectorControlPanel.cpp
     src/ui/AlertQueue.cpp
     src/ui/EngagementDialog.cpp
+    src/ui/ThemeManager.cpp
 )
 
 set(CONFIG_SOURCES
@@ -251,6 +252,7 @@ set(UI_HEADERS
     src/ui/EffectorControlPanel.h
     src/ui/AlertQueue.h
     src/ui/EngagementDialog.h
+    src/ui/ThemeManager.h
 )
 
 set(CONFIG_HEADERS

@@ -1,33 +1,123 @@
 #include "ui/TrackDetailPanel.h"
+#include "ui/ThemeManager.h"
 #include <QVBoxLayout>
+#include <QHBoxLayout>
 #include <QFormLayout>
 #include <QPushButton>
+#include <QFrame>
 
 namespace CounterUAS {
 
 TrackDetailPanel::TrackDetailPanel(QWidget* parent) : QWidget(parent) {
     QVBoxLayout* mainLayout = new QVBoxLayout(this);
+    mainLayout->setContentsMargins(8, 8, 8, 8);
+    mainLayout->setSpacing(12);
+    
+    // Header
+    QLabel* headerLabel = new QLabel("TRACK DETAILS", this);
+    headerLabel->setStyleSheet(
+        "QLabel {"
+        "   background: qlineargradient(x1:0, y1:0, x2:0, y2:1,"
+        "       stop:0 #21262d, stop:1 #161b22);"
+        "   border: 1px solid #30363d;"
+        "   border-radius: 4px;"
+        "   padding: 8px 12px;"
+        "   font-weight: bold;"
+        "   font-size: 11px;"
+        "   letter-spacing: 1px;"
+        "   color: #00a8e8;"
+        "}"
+    );
+    headerLabel->setAlignment(Qt::AlignCenter);
+    mainLayout->addWidget(headerLabel);
+    
+    // Form container with styled background
+    QWidget* formContainer = new QWidget(this);
+    formContainer->setStyleSheet(
+        "QWidget {"
+        "   background-color: #161b22;"
+        "   border: 1px solid #30363d;"
+        "   border-radius: 6px;"
+        "}"
+    );
+    
+    QVBoxLayout* formContainerLayout = new QVBoxLayout(formContainer);
+    formContainerLayout->setContentsMargins(12, 12, 12, 12);
     
     QFormLayout* formLayout = new QFormLayout();
+    formLayout->setSpacing(10);
+    formLayout->setLabelAlignment(Qt::AlignRight);
+    
+    // Styled labels
+    QString labelStyle = "color: #8b949e; font-weight: 500;";
+    QString valueStyle = "color: #e6edf3; font-weight: 500; font-family: 'Consolas', monospace;";
     
     m_idLabel = new QLabel("-");
+    m_idLabel->setStyleSheet(valueStyle);
+    QLabel* idLabelTitle = new QLabel("Track ID:");
+    idLabelTitle->setStyleSheet(labelStyle);
+    formLayout->addRow(idLabelTitle, m_idLabel);
+    
     m_classLabel = new QLabel("-");
+    m_classLabel->setStyleSheet(valueStyle);
+    QLabel* classLabelTitle = new QLabel("Classification:");
+    classLabelTitle->setStyleSheet(labelStyle);
+    formLayout->addRow(classLabelTitle, m_classLabel);
+    
     m_posLabel = new QLabel("-");
+    m_posLabel->setStyleSheet(valueStyle);
+    m_posLabel->setWordWrap(true);
+    QLabel* posLabelTitle = new QLabel("Position:");
+    posLabelTitle->setStyleSheet(labelStyle);
+    formLayout->addRow(posLabelTitle, m_posLabel);
+    
     m_velLabel = new QLabel("-");
+    m_velLabel->setStyleSheet(valueStyle);
+    QLabel* velLabelTitle = new QLabel("Velocity:");
+    velLabelTitle->setStyleSheet(labelStyle);
+    formLayout->addRow(velLabelTitle, m_velLabel);
+    
     m_threatLabel = new QLabel("-");
+    m_threatLabel->setStyleSheet(valueStyle);
+    QLabel* threatLabelTitle = new QLabel("Threat Level:");
+    threatLabelTitle->setStyleSheet(labelStyle);
+    formLayout->addRow(threatLabelTitle, m_threatLabel);
+    
     m_stateLabel = new QLabel("-");
+    m_stateLabel->setStyleSheet(valueStyle);
+    QLabel* stateLabelTitle = new QLabel("State:");
+    stateLabelTitle->setStyleSheet(labelStyle);
+    formLayout->addRow(stateLabelTitle, m_stateLabel);
     
-    formLayout->addRow("Track ID:", m_idLabel);
-    formLayout->addRow("Classification:", m_classLabel);
-    formLayout->addRow("Position:", m_posLabel);
-    formLayout->addRow("Velocity:", m_velLabel);
-    formLayout->addRow("Threat Level:", m_threatLabel);
-    formLayout->addRow("State:", m_stateLabel);
+    formContainerLayout->addLayout(formLayout);
+    mainLayout->addWidget(formContainer);
     
-    mainLayout->addLayout(formLayout);
+    // Separator
+    QFrame* separator = new QFrame(this);
+    separator->setFrameShape(QFrame::HLine);
+    separator->setStyleSheet("background-color: #30363d;");
+    separator->setFixedHeight(1);
+    mainLayout->addWidget(separator);
     
-    QPushButton* engageBtn = new QPushButton("Engage");
+    // Action buttons
+    QLabel* actionsLabel = new QLabel("ACTIONS", this);
+    actionsLabel->setStyleSheet(
+        "color: #8b949e;"
+        "font-weight: bold;"
+        "font-size: 10px;"
+        "letter-spacing: 1px;"
+    );
+    mainLayout->addWidget(actionsLabel);
+    
+    QPushButton* engageBtn = new QPushButton("ENGAGE TARGET");
+    engageBtn->setStyleSheet(ThemeManager::engageButtonStyle());
+    engageBtn->setMinimumHeight(45);
+    engageBtn->setCursor(Qt::PointingHandCursor);
+    
     QPushButton* slewBtn = new QPushButton("Slew Camera");
+    slewBtn->setStyleSheet(ThemeManager::buttonStyle("primary"));
+    slewBtn->setMinimumHeight(36);
+    slewBtn->setCursor(Qt::PointingHandCursor);
     
     connect(engageBtn, &QPushButton::clicked, this, [this]() {
         if (m_track) emit engageRequested(m_track->trackId());

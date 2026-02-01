@@ -17,11 +17,40 @@ SensorStatusPanel::SensorStatusPanel(QWidget* parent)
 
 void SensorStatusPanel::setupUI() {
     QVBoxLayout* layout = new QVBoxLayout(this);
-    layout->setContentsMargins(5, 5, 5, 5);
+    layout->setContentsMargins(8, 8, 8, 8);
+    layout->setSpacing(8);
     
-    QLabel* titleLabel = new QLabel("Sensor Status", this);
-    titleLabel->setStyleSheet("font-weight: bold; font-size: 12px;");
-    layout->addWidget(titleLabel);
+    // Header with icon
+    QWidget* headerWidget = new QWidget(this);
+    QHBoxLayout* headerLayout = new QHBoxLayout(headerWidget);
+    headerLayout->setContentsMargins(0, 0, 0, 0);
+    
+    QLabel* sensorIcon = new QLabel(headerWidget);
+    sensorIcon->setPixmap(QIcon(":/icons/sensor.svg").pixmap(16, 16));
+    headerLayout->addWidget(sensorIcon);
+    
+    QLabel* titleLabel = new QLabel("SENSOR STATUS", headerWidget);
+    titleLabel->setStyleSheet(
+        "color: #00a8e8;"
+        "font-weight: bold;"
+        "font-size: 11px;"
+        "letter-spacing: 1px;"
+    );
+    headerLayout->addWidget(titleLabel);
+    headerLayout->addStretch();
+    
+    QWidget* headerContainer = new QWidget(this);
+    headerContainer->setStyleSheet(
+        "background: qlineargradient(x1:0, y1:0, x2:0, y2:1,"
+        "   stop:0 #21262d, stop:1 #161b22);"
+        "border: 1px solid #30363d;"
+        "border-radius: 4px;"
+    );
+    QVBoxLayout* headerContainerLayout = new QVBoxLayout(headerContainer);
+    headerContainerLayout->setContentsMargins(10, 6, 10, 6);
+    headerContainerLayout->addWidget(headerWidget);
+    
+    layout->addWidget(headerContainer);
     
     m_table = new QTableWidget(this);
     m_table->setColumnCount(5);
@@ -32,6 +61,44 @@ void SensorStatusPanel::setupUI() {
     m_table->setSelectionMode(QAbstractItemView::SingleSelection);
     m_table->setAlternatingRowColors(true);
     m_table->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    m_table->verticalHeader()->hide();
+    m_table->setShowGrid(false);
+    
+    // Modern table styling
+    m_table->setStyleSheet(
+        "QTableWidget {"
+        "   background-color: #0d1117;"
+        "   alternate-background-color: #161b22;"
+        "   border: 1px solid #30363d;"
+        "   border-radius: 6px;"
+        "   gridline-color: transparent;"
+        "   selection-background-color: #1e3a5f;"
+        "   selection-color: #ffffff;"
+        "   outline: none;"
+        "}"
+        "QTableWidget::item {"
+        "   padding: 8px 12px;"
+        "   border-bottom: 1px solid #21262d;"
+        "}"
+        "QTableWidget::item:hover {"
+        "   background-color: #21262d;"
+        "}"
+        "QTableWidget::item:selected {"
+        "   background-color: #1e3a5f;"
+        "   color: #ffffff;"
+        "}"
+        "QHeaderView::section {"
+        "   background: qlineargradient(x1:0, y1:0, x2:0, y2:1,"
+        "       stop:0 #21262d, stop:1 #161b22);"
+        "   color: #e6edf3;"
+        "   padding: 10px 8px;"
+        "   border: none;"
+        "   border-right: 1px solid #30363d;"
+        "   border-bottom: 1px solid #30363d;"
+        "   font-weight: 600;"
+        "   font-size: 11px;"
+        "}"
+    );
     
     connect(m_table, &QTableWidget::cellClicked, this, &SensorStatusPanel::onTableItemClicked);
     connect(m_table, &QTableWidget::cellDoubleClicked, this, &SensorStatusPanel::onTableItemDoubleClicked);

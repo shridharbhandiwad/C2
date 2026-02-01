@@ -28,26 +28,59 @@ void VideoGridWidget::setupDayNightLayout() {
     m_rows = 1;
     m_cols = 2;
     
-    // Style for camera labels
-    QString labelStyle = "QLabel { color: white; background-color: rgba(0, 0, 0, 180); "
-                        "padding: 4px 8px; font-weight: bold; font-size: 11px; "
-                        "border-radius: 3px; }";
+    // Modern camera container style
+    QString containerStyle = 
+        "background-color: #0d1117;"
+        "border: 1px solid #30363d;"
+        "border-radius: 6px;";
+    
+    QString containerHoverStyle = 
+        "background-color: #0d1117;"
+        "border: 2px solid #1e3a5f;"
+        "border-radius: 6px;";
     
     // Create Day Camera container (left side)
     QWidget* dayContainer = new QWidget(this);
-    dayContainer->setStyleSheet("background-color: #1a1a1a; border: 1px solid #333;");
+    dayContainer->setObjectName("dayContainer");
+    dayContainer->setStyleSheet(QString("#dayContainer { %1 }").arg(containerStyle));
     QVBoxLayout* dayLayout = new QVBoxLayout(dayContainer);
-    dayLayout->setContentsMargins(2, 2, 2, 2);
-    dayLayout->setSpacing(2);
+    dayLayout->setContentsMargins(4, 4, 4, 4);
+    dayLayout->setSpacing(4);
     
-    m_dayLabel = new QLabel("DAY CAMERA", dayContainer);
-    m_dayLabel->setStyleSheet(labelStyle + "background-color: rgba(30, 100, 180, 200);");
-    m_dayLabel->setAlignment(Qt::AlignCenter);
-    dayLayout->addWidget(m_dayLabel);
+    // Day camera header
+    QWidget* dayHeader = new QWidget(dayContainer);
+    QHBoxLayout* dayHeaderLayout = new QHBoxLayout(dayHeader);
+    dayHeaderLayout->setContentsMargins(8, 4, 8, 4);
+    
+    QLabel* dayIcon = new QLabel(dayHeader);
+    dayIcon->setPixmap(QIcon(":/icons/camera.svg").pixmap(12, 12));
+    dayHeaderLayout->addWidget(dayIcon);
+    
+    m_dayLabel = new QLabel("DAY CAMERA", dayHeader);
+    m_dayLabel->setStyleSheet(
+        "color: #00a8e8;"
+        "font-weight: bold;"
+        "font-size: 10px;"
+        "letter-spacing: 1px;"
+    );
+    dayHeaderLayout->addWidget(m_dayLabel);
+    dayHeaderLayout->addStretch();
+    
+    dayHeader->setStyleSheet(
+        "background: qlineargradient(x1:0, y1:0, x2:0, y2:1,"
+        "   stop:0 #1e3a5f, stop:1 #0d2040);"
+        "border-radius: 4px;"
+    );
+    dayLayout->addWidget(dayHeader);
     
     m_dayWidget = new VideoDisplayWidget(dayContainer);
-    m_dayWidget->setMinimumSize(240, 180);
+    m_dayWidget->setMinimumSize(240, 160);
     m_dayWidget->setSource("SIM-DAY-001");
+    m_dayWidget->setStyleSheet(
+        "background-color: #000000;"
+        "border-radius: 4px;"
+    );
+    m_dayWidget->setCursor(Qt::PointingHandCursor);
     connect(m_dayWidget, &VideoDisplayWidget::clicked, this, [this]() {
         emit cameraSelected(m_dayWidget->currentSource());
     });
@@ -55,19 +88,46 @@ void VideoGridWidget::setupDayNightLayout() {
     
     // Create Night Camera container (right side)
     QWidget* nightContainer = new QWidget(this);
-    nightContainer->setStyleSheet("background-color: #1a1a1a; border: 1px solid #333;");
+    nightContainer->setObjectName("nightContainer");
+    nightContainer->setStyleSheet(QString("#nightContainer { %1 }").arg(containerStyle));
     QVBoxLayout* nightLayout = new QVBoxLayout(nightContainer);
-    nightLayout->setContentsMargins(2, 2, 2, 2);
-    nightLayout->setSpacing(2);
+    nightLayout->setContentsMargins(4, 4, 4, 4);
+    nightLayout->setSpacing(4);
     
-    m_nightLabel = new QLabel("NIGHT CAMERA", nightContainer);
-    m_nightLabel->setStyleSheet(labelStyle + "background-color: rgba(100, 30, 100, 200);");
-    m_nightLabel->setAlignment(Qt::AlignCenter);
-    nightLayout->addWidget(m_nightLabel);
+    // Night camera header
+    QWidget* nightHeader = new QWidget(nightContainer);
+    QHBoxLayout* nightHeaderLayout = new QHBoxLayout(nightHeader);
+    nightHeaderLayout->setContentsMargins(8, 4, 8, 4);
+    
+    QLabel* nightIcon = new QLabel(nightHeader);
+    nightIcon->setPixmap(QIcon(":/icons/camera.svg").pixmap(12, 12));
+    nightHeaderLayout->addWidget(nightIcon);
+    
+    m_nightLabel = new QLabel("NIGHT CAMERA", nightHeader);
+    m_nightLabel->setStyleSheet(
+        "color: #a855f7;"
+        "font-weight: bold;"
+        "font-size: 10px;"
+        "letter-spacing: 1px;"
+    );
+    nightHeaderLayout->addWidget(m_nightLabel);
+    nightHeaderLayout->addStretch();
+    
+    nightHeader->setStyleSheet(
+        "background: qlineargradient(x1:0, y1:0, x2:0, y2:1,"
+        "   stop:0 #581c87, stop:1 #3b0764);"
+        "border-radius: 4px;"
+    );
+    nightLayout->addWidget(nightHeader);
     
     m_nightWidget = new VideoDisplayWidget(nightContainer);
-    m_nightWidget->setMinimumSize(240, 180);
+    m_nightWidget->setMinimumSize(240, 160);
     m_nightWidget->setSource("SIM-NIGHT-001");
+    m_nightWidget->setStyleSheet(
+        "background-color: #000000;"
+        "border-radius: 4px;"
+    );
+    m_nightWidget->setCursor(Qt::PointingHandCursor);
     connect(m_nightWidget, &VideoDisplayWidget::clicked, this, [this]() {
         emit cameraSelected(m_nightWidget->currentSource());
     });
