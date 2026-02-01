@@ -20,7 +20,44 @@ SensorConfigDialog::SensorConfigDialog(SensorSimulator* simulator, QWidget* pare
     , m_simulator(simulator)
 {
     setWindowTitle("Sensor Configuration");
-    setMinimumSize(700, 500);
+    setMinimumSize(700, 550);
+    
+    // Apply modern dialog styling
+    setStyleSheet(
+        "QDialog { background-color: #0d1117; }"
+        "QGroupBox { background-color: #161b22; border: 1px solid #30363d; border-radius: 8px; "
+        "   margin-top: 16px; padding: 16px 12px 12px 12px; font-weight: 600; color: #e6edf3; }"
+        "QGroupBox::title { subcontrol-origin: margin; subcontrol-position: top left; "
+        "   left: 16px; padding: 4px 12px; background-color: #1e3a5f; border-radius: 4px; color: #ffffff; }"
+        "QLabel { color: #e6edf3; }"
+        "QLineEdit, QSpinBox, QDoubleSpinBox, QComboBox {"
+        "   background-color: #0d1117; border: 1px solid #30363d; border-radius: 6px; "
+        "   padding: 6px 8px; color: #e6edf3; min-height: 24px; }"
+        "QLineEdit:focus, QSpinBox:focus, QDoubleSpinBox:focus, QComboBox:focus { border-color: #00a8e8; }"
+        "QCheckBox { color: #e6edf3; spacing: 8px; }"
+        "QCheckBox::indicator { width: 18px; height: 18px; border: 2px solid #30363d; "
+        "   border-radius: 4px; background-color: #0d1117; }"
+        "QCheckBox::indicator:checked { background-color: #00a8e8; border-color: #00a8e8; }"
+        "QTableWidget { background-color: #0d1117; alternate-background-color: #161b22; "
+        "   border: 1px solid #30363d; border-radius: 6px; gridline-color: #21262d; "
+        "   selection-background-color: #1e3a5f; selection-color: #ffffff; }"
+        "QTableWidget::item { padding: 8px; border-bottom: 1px solid #21262d; }"
+        "QHeaderView::section { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, "
+        "   stop:0 #21262d, stop:1 #161b22); color: #e6edf3; padding: 10px 8px; "
+        "   border: none; border-right: 1px solid #30363d; border-bottom: 1px solid #30363d; font-weight: 600; }"
+        "QTabWidget::pane { background-color: #161b22; border: 1px solid #30363d; "
+        "   border-radius: 8px; padding: 8px; }"
+        "QTabBar::tab { background-color: #0d1117; border: 1px solid #30363d; border-bottom: none; "
+        "   border-top-left-radius: 6px; border-top-right-radius: 6px; padding: 10px 20px; "
+        "   margin-right: 2px; color: #8b949e; }"
+        "QTabBar::tab:selected { background-color: #161b22; color: #00a8e8; font-weight: 500; }"
+        "QTabBar::tab:hover { background-color: #21262d; color: #e6edf3; }"
+        "QPushButton { background-color: #21262d; border: 1px solid #30363d; border-radius: 6px; "
+        "   padding: 8px 16px; color: #e6edf3; font-weight: 500; }"
+        "QPushButton:hover { background-color: #30363d; border-color: #8b949e; }"
+        "QPushButton:pressed { background-color: #1e3a5f; }"
+        "QPushButton:disabled { background-color: #161b22; border-color: #21262d; color: #484f58; }"
+    );
     
     setupUI();
     refreshSensorList();

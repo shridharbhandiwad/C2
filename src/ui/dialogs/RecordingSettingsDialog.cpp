@@ -20,7 +20,29 @@ RecordingSettingsDialog::RecordingSettingsDialog(VideoStreamManager* manager, QW
     , m_manager(manager)
 {
     setWindowTitle("Recording Settings");
-    setMinimumSize(500, 600);
+    setMinimumSize(500, 650);
+    
+    // Apply modern dialog styling
+    setStyleSheet(
+        "QDialog { background-color: #0d1117; }"
+        "QGroupBox { background-color: #161b22; border: 1px solid #30363d; border-radius: 8px; "
+        "   margin-top: 16px; padding: 16px 12px 12px 12px; font-weight: 600; color: #e6edf3; }"
+        "QGroupBox::title { subcontrol-origin: margin; subcontrol-position: top left; "
+        "   left: 16px; padding: 4px 12px; background-color: #1e3a5f; border-radius: 4px; color: #ffffff; }"
+        "QLabel { color: #e6edf3; }"
+        "QLineEdit, QSpinBox, QComboBox {"
+        "   background-color: #0d1117; border: 1px solid #30363d; border-radius: 6px; "
+        "   padding: 6px 8px; color: #e6edf3; min-height: 24px; }"
+        "QLineEdit:focus, QSpinBox:focus, QComboBox:focus { border-color: #00a8e8; }"
+        "QCheckBox { color: #e6edf3; spacing: 8px; }"
+        "QCheckBox::indicator { width: 18px; height: 18px; border: 2px solid #30363d; "
+        "   border-radius: 4px; background-color: #0d1117; }"
+        "QCheckBox::indicator:checked { background-color: #00a8e8; border-color: #00a8e8; }"
+        "QPushButton { background-color: #21262d; border: 1px solid #30363d; border-radius: 6px; "
+        "   padding: 8px 16px; color: #e6edf3; font-weight: 500; }"
+        "QPushButton:hover { background-color: #30363d; border-color: #8b949e; }"
+        "QPushButton:pressed { background-color: #1e3a5f; }"
+    );
     
     setupUI();
 }
@@ -123,16 +145,32 @@ void RecordingSettingsDialog::setupUI() {
     QHBoxLayout* actionsLayout = new QHBoxLayout(actionsGroup);
     
     QPushButton* startAllBtn = new QPushButton("Start All Recording", this);
-    startAllBtn->setStyleSheet("background-color: green; color: white;");
+    startAllBtn->setStyleSheet(
+        "QPushButton { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, "
+        "   stop:0 #1a5c1a, stop:1 #0d3d0d); border: 1px solid #28a745; color: white; font-weight: 600; }"
+        "QPushButton:hover { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, "
+        "   stop:0 #2a6c2a, stop:1 #1a5c1a); }"
+    );
     connect(startAllBtn, &QPushButton::clicked, this, &RecordingSettingsDialog::onStartAll);
     actionsLayout->addWidget(startAllBtn);
     
     QPushButton* stopAllBtn = new QPushButton("Stop All Recording", this);
-    stopAllBtn->setStyleSheet("background-color: red; color: white;");
+    stopAllBtn->setStyleSheet(
+        "QPushButton { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, "
+        "   stop:0 #8b1a1a, stop:1 #5a1010); border: 1px solid #dc3545; color: white; font-weight: 600; }"
+        "QPushButton:hover { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, "
+        "   stop:0 #a52a2a, stop:1 #8b1a1a); }"
+    );
     connect(stopAllBtn, &QPushButton::clicked, this, &RecordingSettingsDialog::onStopAll);
     actionsLayout->addWidget(stopAllBtn);
     
     QPushButton* snapshotBtn = new QPushButton("Take Snapshot", this);
+    snapshotBtn->setStyleSheet(
+        "QPushButton { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, "
+        "   stop:0 #1e3a5f, stop:1 #0d2040); border: 1px solid #00a8e8; color: white; font-weight: 600; }"
+        "QPushButton:hover { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, "
+        "   stop:0 #2a4a6f, stop:1 #1e3a5f); }"
+    );
     connect(snapshotBtn, &QPushButton::clicked, this, &RecordingSettingsDialog::onTakeSnapshot);
     actionsLayout->addWidget(snapshotBtn);
     
