@@ -14,6 +14,7 @@
 #include <QImageReader>
 #include <QMenu>
 #include <QAction>
+#include <cmath>
 
 namespace CounterUAS {
 
@@ -302,7 +303,19 @@ bool PPIDisplayWidget::loadLocalMap(const QString& filePath) {
         return false;
     }
 
+    // Check for valid image dimensions before proceeding
+    if (image.width() <= 0 || image.height() <= 0) {
+        return false;
+    }
+
     m_localMap = QPixmap::fromImage(image);
+    
+    // Verify pixmap conversion succeeded and has valid dimensions
+    if (m_localMap.isNull() || m_localMap.width() <= 0 || m_localMap.height() <= 0) {
+        m_localMap = QPixmap();  // Clear any partially created pixmap
+        return false;
+    }
+
     m_localMapOffset = QPointF(0.0, 0.0);
     updateLocalMapBaseScale();
     m_localMapScale = m_localMapBaseScale;
@@ -336,9 +349,19 @@ void PPIDisplayWidget::zoomLocalMap(double factor, const QPointF& anchor) {
         return;
     }
 
+    // Guard against invalid scale values
+    if (m_localMapScale <= 0.0 || !std::isfinite(m_localMapScale)) {
+        m_localMapScale = 1.0;
+    }
+
     double newScale = m_localMapScale * factor;
     newScale = qBound(0.05, newScale, 20.0);
     if (qFuzzyCompare(newScale, m_localMapScale)) {
+        return;
+    }
+
+    // Guard against invalid image dimensions
+    if (m_localMap.width() <= 0 || m_localMap.height() <= 0) {
         return;
     }
 
@@ -765,6 +788,12 @@ void PPIDisplayWidget::drawMapTiles(QPainter& painter) {
 
 void PPIDisplayWidget::drawLocalMap(QPainter& painter) {
     if (m_localMap.isNull()) {
+        return;
+    }
+
+    // Guard against invalid image dimensions or scale
+    if (m_localMap.width() <= 0 || m_localMap.height() <= 0 || 
+        m_localMapScale <= 0.0 || !std::isfinite(m_localMapScale)) {
         return;
     }
 
@@ -1329,9 +1358,17 @@ void PPIDisplayWidget::updateLocalMapBaseScale() {
         return;
     }
 
+    // Guard against division by zero with invalid image dimensions
+    int mapWidth = m_localMap.width();
+    int mapHeight = m_localMap.height();
+    if (mapWidth <= 0 || mapHeight <= 0) {
+        m_localMapBaseScale = 1.0;
+        return;
+    }
+
     double diameter = qMax(1.0, ppiRadius() * 2.0);
-    double scaleX = diameter / m_localMap.width();
-    double scaleY = diameter / m_localMap.height();
+    double scaleX = diameter / static_cast<double>(mapWidth);
+    double scaleY = diameter / static_cast<double>(mapHeight);
     m_localMapBaseScale = qBound(0.02, qMin(scaleX, scaleY), 20.0);
 }
 
@@ -1340,7 +1377,9 @@ QPointF PPIDisplayWidget::screenCenter() const {
 }
 
 double PPIDisplayWidget::ppiRadius() const {
-    return qMin(width(), height()) / 2.0 - 40;  // Leave margin for labels
+    // Leave margin for labels, but ensure a minimum positive radius
+    double radius = qMin(width(), height()) / 2.0 - 40;
+    return qMax(1.0, radius);  // Ensure minimum radius of 1 to prevent division by zero
 }
 
 QPointF PPIDisplayWidget::geoToPPI(const GeoPosition& pos) const {
