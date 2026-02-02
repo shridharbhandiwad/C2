@@ -916,6 +916,7 @@ void MainWindow::setupSimulationManager() {
 void MainWindow::setupPPIDisplay() {
     // Configure PPI display
     m_ppiWidget->setTrackManager(m_trackManager);
+    m_ppiWidget->setEngagementManager(m_engagementManager);
     
     // Note: Center and range are set in initializeSubsystems() to stay linked with map
     // Configure defended area radii
@@ -931,6 +932,8 @@ void MainWindow::setupPPIDisplay() {
             this, &MainWindow::onTrackSelected);
     connect(m_ppiWidget, &PPIDisplayWidget::trackDoubleClicked,
             this, &MainWindow::onEngageRequested);
+    connect(m_ppiWidget, &PPIDisplayWidget::engageTrackWithEffector,
+            this, &MainWindow::onEngageWithEffector);
     
     // Connect track manager to PPI widget
     connect(m_trackManager, &TrackManager::trackUpdated,
@@ -1186,6 +1189,21 @@ void MainWindow::onTrackSelected(const QString& trackId) {
 
 void MainWindow::onEngageRequested(const QString& trackId) {
     m_engagementManager->selectTrack(trackId);
+}
+
+void MainWindow::onEngageWithEffector(const QString& trackId, const QString& effectorId) {
+    // Select track and effector, then request authorization and execute engagement
+    m_engagementManager->selectTrack(trackId);
+    m_engagementManager->selectEffector(effectorId);
+    m_engagementManager->requestAuthorization();
+    
+    // Auto-authorize for immediate engagement (in production, this would show a dialog)
+    m_engagementManager->authorize("OPERATOR");
+    m_engagementManager->execute();
+    
+    Logger::instance().info("MainWindow", 
+        QString("Engagement initiated: Track %1 with Effector %2")
+            .arg(trackId).arg(effectorId));
 }
 
 void MainWindow::onCameraSlewRequested(const QString& trackId) {
