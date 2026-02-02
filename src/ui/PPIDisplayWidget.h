@@ -15,6 +15,7 @@
 namespace CounterUAS {
 
 class TrackManager;
+class EngagementManager;
 
 /**
  * @brief PPI Display modes
@@ -131,6 +132,10 @@ public:
     // Track manager connection
     void setTrackManager(TrackManager* manager);
     
+    // Engagement manager connection (for effector access in context menu)
+    void setEngagementManager(EngagementManager* manager);
+    EngagementManager* engagementManager() const { return m_engagementManager; }
+    
     // Track selection
     void selectTrack(const QString& trackId);
     QString selectedTrack() const { return m_selectedTrackId; }
@@ -209,6 +214,7 @@ signals:
     void sweepAngleChanged(double angle);
     void displayModeChanged(PPIDisplayMode mode);
     void engageTrackRequested(const QString& trackId);
+    void engageTrackWithEffector(const QString& trackId, const QString& effectorId);
     void deleteTrackRequested(const QString& trackId);
     void trackFocused(const QString& trackId);
     void trackHistoryPointsChanged(const QString& trackId, int points);
@@ -268,6 +274,7 @@ private:
     
     // Track manager
     TrackManager* m_trackManager = nullptr;
+    EngagementManager* m_engagementManager = nullptr;
     QHash<QString, Track*> m_tracks;
     QHash<QString, QList<TrackHistoryPoint>> m_trackHistory;
     

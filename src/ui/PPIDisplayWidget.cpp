@@ -1,5 +1,7 @@
 #include "ui/PPIDisplayWidget.h"
 #include "core/TrackManager.h"
+#include "core/EngagementManager.h"
+#include "effectors/EffectorInterface.h"
 #include "utils/CoordinateUtils.h"
 #include <QPainter>
 #include <QMouseEvent>
@@ -211,6 +213,10 @@ void PPIDisplayWidget::setTrackManager(TrackManager* manager) {
         connect(m_trackManager, &TrackManager::trackDropped,
                 this, &PPIDisplayWidget::removeTrack);
     }
+}
+
+void PPIDisplayWidget::setEngagementManager(EngagementManager* manager) {
+    m_engagementManager = manager;
 }
 
 void PPIDisplayWidget::selectTrack(const QString& trackId) {
@@ -1500,12 +1506,81 @@ void PPIDisplayWidget::showTrackContextMenu(const QPoint& globalPos, const QStri
     
     contextMenu.addSeparator();
     
-    // Engage action
-    QAction* engageAction = contextMenu.addAction("Engage");
-    engageAction->setIcon(QIcon(":/icons/engage.svg"));
+    // Engage submenu with effector selection
+    QMenu* engageMenu = contextMenu.addMenu("Engage");
+    engageMenu->setIcon(QIcon(":/icons/engage.svg"));
+    
+    QString selectedEffectorId;  // Will store the selected effector ID
+    
     if (track->isEngaged()) {
-        engageAction->setText("Engaged (Active)");
-        engageAction->setEnabled(false);
+        QAction* engagedAction = engageMenu->addAction("Already Engaged");
+        engagedAction->setEnabled(false);
+    } else if (m_engagementManager) {
+        // Get available effectors and add them to submenu
+        QList<EffectorInterface*> effectors = m_engagementManager->effectors();
+        
+        if (effectors.isEmpty()) {
+            QAction* noEffAction = engageMenu->addAction("No effectors available");
+            noEffAction->setEnabled(false);
+        } else {
+            // Get recommended effector for this track
+            EffectorInterface* recommended = m_engagementManager->recommendedEffector(trackId);
+            
+            for (EffectorInterface* eff : effectors) {
+                QString statusStr;
+                bool canEngage = false;
+                
+                switch (eff->status()) {
+                    case EffectorStatus::Ready:
+                        statusStr = "Ready";
+                        canEngage = true;
+                        break;
+                    case EffectorStatus::Engaged:
+                        statusStr = "Engaged";
+                        break;
+                    case EffectorStatus::Offline:
+                        statusStr = "Offline";
+                        break;
+                    case EffectorStatus::Initializing:
+                        statusStr = "Initializing";
+                        break;
+                    case EffectorStatus::Cooldown:
+                        statusStr = "Cooldown";
+                        break;
+                    case EffectorStatus::Reloading:
+                        statusStr = "Reloading";
+                        break;
+                    case EffectorStatus::Fault:
+                        statusStr = "Fault";
+                        break;
+                    default:
+                        statusStr = "Unknown";
+                        break;
+                }
+                
+                QString actionText = QString("%1 [%2] - %3")
+                    .arg(eff->displayName())
+                    .arg(eff->effectorType())
+                    .arg(statusStr);
+                
+                // Mark recommended effector
+                if (recommended && eff == recommended) {
+                    actionText += " *";
+                }
+                
+                QAction* effAction = engageMenu->addAction(actionText);
+                effAction->setData(eff->effectorId());
+                effAction->setEnabled(canEngage);
+                
+                // Set color based on status
+                if (canEngage) {
+                    effAction->setIcon(QIcon(":/icons/engage.svg"));
+                }
+            }
+        }
+    } else {
+        QAction* noMgrAction = engageMenu->addAction("Engagement not available");
+        noMgrAction->setEnabled(false);
     }
     
     // Focus action (magnifier)
@@ -1530,8 +1605,12 @@ void PPIDisplayWidget::showTrackContextMenu(const QPoint& globalPos, const QStri
     // Execute menu
     QAction* selectedAction = contextMenu.exec(globalPos);
     
-    if (selectedAction == engageAction && !track->isEngaged()) {
-        emit engageTrackRequested(trackId);
+    // Check if an effector was selected from the engage submenu
+    if (selectedAction && selectedAction->parent() == engageMenu && !track->isEngaged()) {
+        QString effectorId = selectedAction->data().toString();
+        if (!effectorId.isEmpty()) {
+            emit engageTrackWithEffector(trackId, effectorId);
+        }
     } else if (selectedAction == focusAction) {
         if (m_focusedTrackId == trackId) {
             clearFocus();

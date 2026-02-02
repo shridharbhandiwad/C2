@@ -69,6 +69,7 @@ private slots:
     void updateStatusBar();
     void onTrackSelected(const QString& trackId);
     void onEngageRequested(const QString& trackId);
+    void onEngageWithEffector(const QString& trackId, const QString& effectorId);
     void onCameraSlewRequested(const QString& trackId);
     void onAlertClicked(const QString& alertId);
     void toggleFullScreenVideo();
