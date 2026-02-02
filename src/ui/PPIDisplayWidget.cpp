@@ -318,7 +318,13 @@ bool PPIDisplayWidget::loadLocalMap(const QString& filePath) {
 
     m_localMapOffset = QPointF(0.0, 0.0);
     updateLocalMapBaseScale();
+    
+    // Validate that the base scale is finite and positive before using it
+    if (!std::isfinite(m_localMapBaseScale) || m_localMapBaseScale <= 0.0) {
+        m_localMapBaseScale = 1.0;
+    }
     m_localMapScale = m_localMapBaseScale;
+    
     m_mapPanning = false;
     if (m_mapPanEnabled) {
         setCursor(Qt::OpenHandCursor);
@@ -349,12 +355,20 @@ void PPIDisplayWidget::zoomLocalMap(double factor, const QPointF& anchor) {
         return;
     }
 
+    // Guard against invalid factor
+    if (!std::isfinite(factor) || factor <= 0.0) {
+        return;
+    }
+
     // Guard against invalid scale values
     if (m_localMapScale <= 0.0 || !std::isfinite(m_localMapScale)) {
         m_localMapScale = 1.0;
     }
 
     double newScale = m_localMapScale * factor;
+    if (!std::isfinite(newScale)) {
+        return;
+    }
     newScale = qBound(0.05, newScale, 20.0);
     if (qFuzzyCompare(newScale, m_localMapScale)) {
         return;
@@ -365,13 +379,31 @@ void PPIDisplayWidget::zoomLocalMap(double factor, const QPointF& anchor) {
         return;
     }
 
+    // Guard against invalid anchor point
+    if (!std::isfinite(anchor.x()) || !std::isfinite(anchor.y())) {
+        return;
+    }
+
     QPointF imageCenter(m_localMap.width() / 2.0, m_localMap.height() / 2.0);
     QPointF mapCenter = screenCenter() + m_localMapOffset;
     QPointF imagePos = (anchor - mapCenter) / m_localMapScale + imageCenter;
     QPointF newMapCenter = anchor - (imagePos - imageCenter) * newScale;
 
+    // Validate computed values before applying
+    if (!std::isfinite(newMapCenter.x()) || !std::isfinite(newMapCenter.y())) {
+        return;
+    }
+
+    QPointF newOffset = newMapCenter - screenCenter();
+    
+    // Bound the offset to reasonable values to prevent floating-point overflow
+    const double maxOffset = 100000.0;
+    if (qAbs(newOffset.x()) > maxOffset || qAbs(newOffset.y()) > maxOffset) {
+        return;
+    }
+
     m_localMapScale = newScale;
-    m_localMapOffset = newMapCenter - screenCenter();
+    m_localMapOffset = newOffset;
     update();
 }
 
@@ -379,7 +411,20 @@ void PPIDisplayWidget::panLocalMap(const QPointF& delta) {
     if (m_localMap.isNull()) {
         return;
     }
-    m_localMapOffset += delta;
+    
+    // Guard against invalid delta
+    if (!std::isfinite(delta.x()) || !std::isfinite(delta.y())) {
+        return;
+    }
+    
+    QPointF newOffset = m_localMapOffset + delta;
+    
+    // Bound the offset to reasonable values
+    const double maxOffset = 100000.0;
+    newOffset.setX(qBound(-maxOffset, newOffset.x(), maxOffset));
+    newOffset.setY(qBound(-maxOffset, newOffset.y(), maxOffset));
+    
+    m_localMapOffset = newOffset;
     update();
 }
 
@@ -388,6 +433,12 @@ void PPIDisplayWidget::resetLocalMapView() {
         return;
     }
     updateLocalMapBaseScale();
+    
+    // Validate base scale before using it
+    if (!std::isfinite(m_localMapBaseScale) || m_localMapBaseScale <= 0.0) {
+        m_localMapBaseScale = 1.0;
+    }
+    
     m_localMapScale = m_localMapBaseScale;
     m_localMapOffset = QPointF(0.0, 0.0);
     update();
@@ -696,7 +747,23 @@ void PPIDisplayWidget::resizeEvent(QResizeEvent* event) {
     if (!m_localMap.isNull()) {
         double previousBase = m_localMapBaseScale;
         updateLocalMapBaseScale();
-        if (qFuzzyCompare(m_localMapScale, previousBase)) {
+        
+        // Validate the new base scale
+        if (!std::isfinite(m_localMapBaseScale) || m_localMapBaseScale <= 0.0) {
+            m_localMapBaseScale = 1.0;
+        }
+        
+        // Check if user was at base scale (not manually zoomed) - use absolute comparison
+        // for small values since qFuzzyCompare doesn't work well near zero
+        bool wasAtBaseScale = (previousBase > 0.0) && 
+                              (qAbs(m_localMapScale - previousBase) < 0.001 ||
+                               qFuzzyCompare(m_localMapScale + 1.0, previousBase + 1.0));
+        if (wasAtBaseScale) {
+            m_localMapScale = m_localMapBaseScale;
+        }
+        
+        // Ensure current scale is always valid
+        if (!std::isfinite(m_localMapScale) || m_localMapScale <= 0.0) {
             m_localMapScale = m_localMapBaseScale;
         }
     }
@@ -799,9 +866,25 @@ void PPIDisplayWidget::drawLocalMap(QPainter& painter) {
 
     QPointF center = screenCenter();
     QPointF mapCenter = center + m_localMapOffset;
-    QSizeF scaledSize(m_localMap.width() * m_localMapScale,
-                      m_localMap.height() * m_localMapScale);
+    
+    // Calculate scaled dimensions
+    double scaledWidth = m_localMap.width() * m_localMapScale;
+    double scaledHeight = m_localMap.height() * m_localMapScale;
+    
+    // Guard against invalid scaled dimensions (too small, too large, or non-finite)
+    if (!std::isfinite(scaledWidth) || !std::isfinite(scaledHeight) ||
+        scaledWidth < 1.0 || scaledHeight < 1.0 ||
+        scaledWidth > 100000.0 || scaledHeight > 100000.0) {
+        return;
+    }
+    
+    QSizeF scaledSize(scaledWidth, scaledHeight);
     QPointF topLeft = mapCenter - QPointF(scaledSize.width() / 2.0, scaledSize.height() / 2.0);
+    
+    // Guard against non-finite coordinates
+    if (!std::isfinite(topLeft.x()) || !std::isfinite(topLeft.y())) {
+        return;
+    }
 
     painter.drawPixmap(QRectF(topLeft, scaledSize), m_localMap, m_localMap.rect());
 }
@@ -1366,10 +1449,29 @@ void PPIDisplayWidget::updateLocalMapBaseScale() {
         return;
     }
 
-    double diameter = qMax(1.0, ppiRadius() * 2.0);
+    double radius = ppiRadius();
+    // Additional guard: ensure radius is valid
+    if (!std::isfinite(radius) || radius <= 0.0) {
+        m_localMapBaseScale = 1.0;
+        return;
+    }
+    
+    double diameter = qMax(1.0, radius * 2.0);
     double scaleX = diameter / static_cast<double>(mapWidth);
     double scaleY = diameter / static_cast<double>(mapHeight);
+    
+    // Ensure scale values are finite before using them
+    if (!std::isfinite(scaleX) || !std::isfinite(scaleY)) {
+        m_localMapBaseScale = 1.0;
+        return;
+    }
+    
     m_localMapBaseScale = qBound(0.02, qMin(scaleX, scaleY), 20.0);
+    
+    // Final validation
+    if (!std::isfinite(m_localMapBaseScale) || m_localMapBaseScale <= 0.0) {
+        m_localMapBaseScale = 1.0;
+    }
 }
 
 QPointF PPIDisplayWidget::screenCenter() const {
