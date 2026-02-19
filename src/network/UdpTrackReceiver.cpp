@@ -36,8 +36,11 @@ bool UdpTrackReceiver::start(quint16 port) {
     }
 
     Logger::instance().info("UdpTrackReceiver",
-        QString("Listening for track updates on UDP port %1 (msg size = %2 bytes)")
-            .arg(m_port).arg(sizeof(TrackUpdateMessage)));
+        QString("Listening for track updates on UDP port %1 "
+                "(single msg=%2 bytes, table header=%3 bytes)")
+            .arg(m_port)
+            .arg(sizeof(TrackUpdateMessage))
+            .arg(sizeof(TrackTableHeader)));
     return true;
 }
 
@@ -57,31 +60,94 @@ void UdpTrackReceiver::onReadyRead() {
         QNetworkDatagram datagram = m_socket->receiveDatagram();
         QByteArray data = datagram.data();
 
-        if (data.size() < static_cast<int>(sizeof(TrackUpdateMessage))) {
+        if (data.size() < static_cast<int>(sizeof(uint32_t))) {
             Logger::instance().warning("UdpTrackReceiver",
-                QString("Undersized datagram from %1:%2 (%3 bytes, expected >= %4)")
+                QString("Undersized datagram from %1:%2 (%3 bytes)")
                     .arg(datagram.senderAddress().toString())
                     .arg(datagram.senderPort())
-                    .arg(data.size())
-                    .arg(sizeof(TrackUpdateMessage)));
+                    .arg(data.size()));
             continue;
         }
 
-        TrackUpdateMessage msg;
-        std::memcpy(&msg, data.constData(), sizeof(TrackUpdateMessage));
+        uint32_t messageId = 0;
+        std::memcpy(&messageId, data.constData(), sizeof(uint32_t));
 
-        if (msg.messageId != 0x0002) {
+        if (messageId == MSG_ID_TRACK_UPDATE) {
+            if (data.size() < static_cast<int>(sizeof(TrackUpdateMessage))) {
+                Logger::instance().warning("UdpTrackReceiver",
+                    QString("Undersized TrackUpdate from %1:%2 (%3 bytes, expected %4)")
+                        .arg(datagram.senderAddress().toString())
+                        .arg(datagram.senderPort())
+                        .arg(data.size())
+                        .arg(sizeof(TrackUpdateMessage)));
+                continue;
+            }
+
+            TrackUpdateMessage msg;
+            std::memcpy(&msg, data.constData(), sizeof(TrackUpdateMessage));
+            m_messagesReceived++;
+            processTrackUpdate(msg);
+
+        } else if (messageId == MSG_ID_TRACK_TABLE) {
+            if (data.size() < static_cast<int>(sizeof(TrackTableHeader))) {
+                Logger::instance().warning("UdpTrackReceiver",
+                    QString("Undersized TrackTable from %1:%2 (%3 bytes, header needs %4)")
+                        .arg(datagram.senderAddress().toString())
+                        .arg(datagram.senderPort())
+                        .arg(data.size())
+                        .arg(sizeof(TrackTableHeader)));
+                continue;
+            }
+
+            m_messagesReceived++;
+            processTrackTable(data);
+
+        } else {
             Logger::instance().debug("UdpTrackReceiver",
-                QString("Ignoring datagram with messageId 0x%1 (expected 0x0002) from %2:%3")
-                    .arg(msg.messageId, 4, 16, QChar('0'))
+                QString("Ignoring datagram with messageId 0x%1 from %2:%3")
+                    .arg(messageId, 4, 16, QChar('0'))
                     .arg(datagram.senderAddress().toString())
                     .arg(datagram.senderPort()));
-            continue;
         }
-
-        m_messagesReceived++;
-        processMessage(msg);
     }
+}
+
+void UdpTrackReceiver::processTrackTable(const QByteArray& data) {
+    TrackTableHeader header;
+    std::memcpy(&header, data.constData(), sizeof(TrackTableHeader));
+
+    uint32_t numTracks = header.numTracks;
+    int expectedSize = static_cast<int>(sizeof(TrackTableHeader) +
+                                        numTracks * sizeof(TrackUpdateMessage));
+
+    if (data.size() < expectedSize) {
+        int possibleTracks = (data.size() - static_cast<int>(sizeof(TrackTableHeader)))
+                             / static_cast<int>(sizeof(TrackUpdateMessage));
+        Logger::instance().warning("UdpTrackReceiver",
+            QString("TrackTable claims %1 tracks but datagram too small "
+                    "(%2 bytes, expected %3). Processing %4 tracks.")
+                .arg(numTracks).arg(data.size()).arg(expectedSize).arg(possibleTracks));
+        numTracks = static_cast<uint32_t>(qMax(0, possibleTracks));
+    }
+
+    if (numTracks == 0) return;
+
+    const char* trackData = data.constData() + sizeof(TrackTableHeader);
+
+    for (uint32_t i = 0; i < numTracks; ++i) {
+        TrackUpdateMessage msg;
+        std::memcpy(&msg, trackData + i * sizeof(TrackUpdateMessage),
+                    sizeof(TrackUpdateMessage));
+        processTrackUpdate(msg);
+    }
+
+    if (m_messagesReceived <= 1 || (m_messagesReceived % 100) == 0) {
+        Logger::instance().info("UdpTrackReceiver",
+            QString("Processed TrackTable #%1: %2 tracks")
+                .arg(m_messagesReceived).arg(numTracks));
+    }
+
+    emit tracksReceived(numTracks);
 }
 
 static TrackClassification mapClassification(UdpTrackClassification cls) {
@@ -103,7 +169,7 @@ static TrackState mapStatus(TrackStatus status) {
     }
 }
 
-void UdpTrackReceiver::processMessage(const TrackUpdateMessage& msg) {
+void UdpTrackReceiver::processTrackUpdate(const TrackUpdateMessage& msg) {
     if (!m_trackManager) return;
 
     static constexpr double METERS_PER_DEG_LAT = 111000.0;
@@ -122,8 +188,9 @@ void UdpTrackReceiver::processMessage(const TrackUpdateMessage& msg) {
     bool hasSpherical  = (msg.range != 0.0 || msg.azimuth != 0.0 || msg.elevation != 0.0);
 
     if (cartesianZero && hasSpherical) {
-        double azRad = qDegreesToRadians(msg.azimuth);
-        double elRad = qDegreesToRadians(msg.elevation);
+        // Azimuth and elevation are already in radians per the ICD
+        double azRad = msg.azimuth;
+        double elRad = msg.elevation;
         enu_x = msg.range * std::cos(elRad) * std::sin(azRad);
         enu_y = msg.range * std::cos(elRad) * std::cos(azRad);
         enu_z = msg.range * std::sin(elRad);
@@ -146,51 +213,79 @@ void UdpTrackReceiver::processMessage(const TrackUpdateMessage& msg) {
     vel.down  = -enu_vz;
 
     double quality = qBound(0.0, msg.trackQuality, 1.0);
+    TrackClassification cls = mapClassification(msg.classification);
+
+    // Use external trackId for deterministic mapping to internal tracks.
+    // This avoids proximity-based correlation which breaks with multiple nearby tracks.
+    uint32_t extId = msg.trackId;
+    QString internalId;
+
+    if (msg.status == TrackStatus::Dropped) {
+        // Handle track drop: remove mapping and drop internal track
+        if (m_externalToInternalId.contains(extId)) {
+            internalId = m_externalToInternalId.take(extId);
+            m_trackManager->dropTrack(internalId);
+        }
+        emit trackReceived(extId);
+        return;
+    }
+
+    if (m_externalToInternalId.contains(extId)) {
+        // Existing track: update position, velocity, classification
+        internalId = m_externalToInternalId.value(extId);
+
+        Track* t = m_trackManager->track(internalId);
+        if (!t || t->state() == TrackState::Dropped) {
+            // Internal track was dropped or lost; re-create
+            m_externalToInternalId.remove(extId);
+        } else {
+            m_trackManager->updateTrack(internalId, pos);
+            m_trackManager->updateTrackVelocity(internalId, vel);
+
+            if (t->classification() != cls) {
+                m_trackManager->setTrackClassification(internalId, cls, quality);
+            }
+            t->setTrackQuality(quality);
+
+            emit trackReceived(extId);
+            return;
+        }
+    }
+
+    // New external track: create internal track and store the mapping
+    qint64 tsMs = static_cast<qint64>(msg.timestamp / 1000);
+    if (tsMs <= 0) {
+        tsMs = QDateTime::currentMSecsSinceEpoch();
+    }
+
+    internalId = m_trackManager->createTrack(pos, DetectionSource::Radar);
+    if (internalId.isEmpty()) {
+        Logger::instance().warning("UdpTrackReceiver",
+            QString("Failed to create internal track for external ID %1").arg(extId));
+        emit trackReceived(extId);
+        return;
+    }
+
+    m_externalToInternalId.insert(extId, internalId);
+
+    m_trackManager->updateTrackVelocity(internalId, vel);
+    m_trackManager->setTrackClassification(internalId, cls, quality);
+
+    Track* t = m_trackManager->track(internalId);
+    if (t) {
+        t->setTrackQuality(quality);
+    }
 
     if (m_messagesReceived <= 1 || (m_messagesReceived % 100) == 0) {
         QString src = (cartesianZero && hasSpherical) ? "spherical" : "cartesian";
         Logger::instance().info("UdpTrackReceiver",
-            QString("Track update #%1 (extId=%2, %3): lat=%4 lon=%5 alt=%6")
-                .arg(m_messagesReceived).arg(msg.trackId).arg(src)
+            QString("New track mapping: ext=%1 -> int=%2 (%3): lat=%4 lon=%5 alt=%6")
+                .arg(extId).arg(internalId).arg(src)
                 .arg(pos.latitude, 0, 'f', 6).arg(pos.longitude, 0, 'f', 6)
                 .arg(pos.altitude, 0, 'f', 1));
     }
 
-    m_trackManager->processRadarDetection(pos, vel, quality,
-                                          QDateTime::currentMSecsSinceEpoch());
-
-    // After correlation, find the track nearest to this position so we can
-    // apply classification and state from the external tracker.
-    QList<Track*> nearby = m_trackManager->tracksInRadius(pos, 50.0);
-    if (nearby.isEmpty()) {
-        nearby = m_trackManager->tracksInRadius(pos, 200.0);
-    }
-
-    if (!nearby.isEmpty()) {
-        Track* best = nullptr;
-        double bestDist = 1e9;
-        for (Track* t : nearby) {
-            double d = t->distanceTo(pos);
-            if (d < bestDist) {
-                bestDist = d;
-                best = t;
-            }
-        }
-
-        if (best) {
-            TrackClassification cls = mapClassification(msg.classification);
-            if (best->classification() != cls) {
-                m_trackManager->setTrackClassification(best->trackId(), cls, quality);
-            }
-            best->setTrackQuality(quality);
-
-            if (msg.status == TrackStatus::Dropped) {
-                m_trackManager->dropTrack(best->trackId());
-            }
-        }
-    }
-
-    emit trackReceived(msg.trackId);
+    emit trackReceived(extId);
 }
 
 } // namespace CounterUAS
