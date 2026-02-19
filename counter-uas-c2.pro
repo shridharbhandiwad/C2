@@ -75,7 +75,8 @@ SOURCES += \
 # Network module sources
 SOURCES += \
     src/network/NetworkManager.cpp \
-    src/network/MessageProtocol.cpp
+    src/network/MessageProtocol.cpp \
+    src/network/UdpTrackReceiver.cpp
 
 # UI module sources
 SOURCES += \
@@ -163,7 +164,8 @@ HEADERS += \
 # Network module headers
 HEADERS += \
     src/network/NetworkManager.h \
-    src/network/MessageProtocol.h
+    src/network/MessageProtocol.h \
+    src/network/UdpTrackReceiver.h
 
 # UI module headers
 HEADERS += \
