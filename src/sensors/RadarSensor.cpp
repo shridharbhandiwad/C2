@@ -51,7 +51,7 @@ RadarSensor::RadarSensor(const QString& sensorId, QObject* parent)
     QObject::connect(m_socket, &QTcpSocket::connected, this, &RadarSensor::onConnected);
     QObject::connect(m_socket, &QTcpSocket::disconnected, this, &RadarSensor::onDisconnected);
     QObject::connect(m_socket, &QTcpSocket::readyRead, this, &RadarSensor::onReadyRead);
-#if QT_VERSION >= QT_VERSION_CHECK(5, 15, 0)
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
     QObject::connect(m_socket, &QAbstractSocket::errorOccurred, this, &RadarSensor::onError);
 #else
     QObject::connect(m_socket, QOverload<QAbstractSocket::SocketError>::of(&QAbstractSocket::error),

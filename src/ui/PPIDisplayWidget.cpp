@@ -698,7 +698,7 @@ void PPIDisplayWidget::wheelEvent(QWheelEvent* event) {
     double delta = event->angleDelta().y() / 120.0;
     if (!m_localMap.isNull() && (event->modifiers() & Qt::ControlModifier)) {
         double mapFactor = (delta > 0) ? 1.1 : (1.0 / 1.1);
-        zoomLocalMap(mapFactor, event->position());
+        zoomLocalMap(mapFactor, event->posF());
         event->accept();
         return;
     }
