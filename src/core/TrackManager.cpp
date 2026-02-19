@@ -478,6 +478,7 @@ void TrackManager::processTrackCycle() {
 
 Track* TrackManager::findCorrelatedTrack(const GeoPosition& pos, const VelocityVector& vel,
                                          DetectionSource source) {
+    Q_UNUSED(source)
     QReadLocker locker(&m_lock);
     
     Track* bestMatch = nullptr;
