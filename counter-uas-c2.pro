@@ -1,13 +1,12 @@
 #-------------------------------------------------
 #
 # Project: Counter-UAS Command and Control System
-# Qt Version: 5.15.2
+# Qt Version: 5.12+ (compatible with 5.12.12 through 5.15.x)
 #
 #-------------------------------------------------
 
 QT       += core gui widgets network sql multimedia multimediawidgets concurrent serialport
 
-# Qt 5.15.2 specific modules
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
 # Optional modules (uncomment if available)
