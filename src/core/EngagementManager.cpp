@@ -457,7 +457,6 @@ void EngagementManager::recommendEffector() {
     if (best) {
         m_selectedEffectorId = best->effectorId();
         
-        Track* track = m_trackManager->track(m_selectedTrackId);
         QString reason = QString("Recommended based on target range and %1 capability")
                              .arg(best->effectorType());
         

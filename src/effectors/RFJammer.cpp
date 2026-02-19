@@ -13,7 +13,12 @@ RFJammer::RFJammer(const QString& effectorId, QObject* parent)
 {
     connect(m_socket, &QTcpSocket::connected, this, &RFJammer::onSocketConnected);
     connect(m_socket, &QTcpSocket::disconnected, this, &RFJammer::onSocketDisconnected);
+#if QT_VERSION >= QT_VERSION_CHECK(5, 15, 0)
     connect(m_socket, &QTcpSocket::errorOccurred, this, &RFJammer::onSocketError);
+#else
+    connect(m_socket, QOverload<QAbstractSocket::SocketError>::of(&QAbstractSocket::error),
+            this, &RFJammer::onSocketError);
+#endif
     
     m_engagementTimer->setSingleShot(true);
     connect(m_engagementTimer, &QTimer::timeout, this, &RFJammer::onEngagementTimeout);
