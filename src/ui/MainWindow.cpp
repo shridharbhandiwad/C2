@@ -1011,8 +1011,8 @@ void MainWindow::stopSimulation() {
     // Stop video simulation
     m_videoSimulator->stop();
     
-    // Stop core simulation systems
-    m_trackManager->stop();
+    // Stop threat assessor but keep the track manager running so it can
+    // continue processing external data (e.g. UDP track updates).
     m_threatAssessor->stop();
     
     // Update sensor status
