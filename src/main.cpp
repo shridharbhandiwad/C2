@@ -21,8 +21,9 @@
 #include "ui/ThemeManager.h"
 #include "config/ConfigManager.h"
 #include "config/DatabaseManager.h"
+#include "core/TrackManager.h"
 #include "utils/Logger.h"
-#include "simulators/TrackSimulator.h"
+#include "network/UdpTrackReceiver.h"
 
 using namespace CounterUAS;
 
@@ -65,19 +66,19 @@ int main(int argc, char *argv[])
     MainWindow mainWindow;
     mainWindow.show();
     
-    // Create track simulator for testing
-    TrackSimulator simulator(mainWindow.trackManager());
-    simulator.start();
+    // Start the track manager so it processes incoming data
+    mainWindow.trackManager()->start();
     
-    // Start simulation automatically for demo
-    mainWindow.startSimulation();
+    // Listen for external track data on UDP port 50001
+    UdpTrackReceiver udpReceiver(mainWindow.trackManager());
+    udpReceiver.start(50001);
     
-    Logger::instance().info("Main", "System initialized successfully");
+    Logger::instance().info("Main", "System initialized — awaiting external track data on UDP port 50001");
     
     int result = app.exec();
     
     // Cleanup
-    simulator.stop();
+    udpReceiver.stop();
     DatabaseManager::instance().close();
     
     Logger::instance().info("Main", "System shutdown complete");

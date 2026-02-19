@@ -72,7 +72,7 @@ private:
     GeoPosition m_basePosition;
     QList<SimulatedTarget> m_targets;
     
-    bool m_autoSpawnEnabled = true;
+    bool m_autoSpawnEnabled = false;
     int m_spawnInterval = 5000;  // milliseconds
     int m_maxTargets = 10;
 };

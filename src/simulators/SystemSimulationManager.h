@@ -226,7 +226,7 @@ private:
     
     // Configuration
     GeoPosition m_basePosition;
-    bool m_autoSpawnTargets = true;
+    bool m_autoSpawnTargets = false;
     int m_maxTargets = 10;
     
     SimulationScenario m_scenario;
