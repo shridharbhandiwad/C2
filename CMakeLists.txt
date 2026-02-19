@@ -146,6 +146,7 @@ set(EFFECTOR_SOURCES
 set(NETWORK_SOURCES
     src/network/NetworkManager.cpp
     src/network/MessageProtocol.cpp
+    src/network/UdpTrackReceiver.cpp
 )
 
 set(UI_SOURCES
@@ -235,6 +236,7 @@ set(EFFECTOR_HEADERS
 set(NETWORK_HEADERS
     src/network/NetworkManager.h
     src/network/MessageProtocol.h
+    src/network/UdpTrackReceiver.h
 )
 
 set(UI_HEADERS

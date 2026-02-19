@@ -1,0 +1,85 @@
+#ifndef UDPTRACKRECEIVER_H
+#define UDPTRACKRECEIVER_H
+
+#include <QObject>
+#include <QUdpSocket>
+#include <cstdint>
+
+namespace CounterUAS {
+
+class TrackManager;
+
+enum class TrackStatus : uint32_t {
+    Tentative = 0,
+    Confirmed = 1,
+    Dropped   = 2,
+    Coasting  = 3
+};
+
+enum class UdpTrackClassification : uint32_t {
+    Unknown   = 0,
+    Friendly  = 1,
+    Hostile   = 2,
+    Pending   = 3,
+    Neutral   = 4
+};
+
+#pragma pack(push, 1)
+struct TrackUpdateMessage {
+    uint32_t            messageId      = 0x0002;
+    uint32_t            trackId        = 0;
+    double              timestamp      = 0;
+    TrackStatus         status         = TrackStatus::Tentative;
+    UdpTrackClassification classification = UdpTrackClassification::Unknown;
+    double              range          = 0.0;
+    double              azimuth        = 0.0;
+    double              elevation      = 0.0;
+    double              rangeRate      = 0.0;
+    double              x = 0.0, y = 0.0, z = 0.0;
+    double              vx = 0.0, vy = 0.0, vz = 0.0;
+    double              trackQuality   = 0.0;
+    uint32_t            hitCount       = 0;
+    uint32_t            missCount      = 0;
+    uint32_t            age            = 0;
+};
+#pragma pack(pop)
+
+/**
+ * @brief Receives track updates via UDP and feeds them into TrackManager
+ *
+ * Listens on a configurable UDP port (default 50001) for binary
+ * TrackUpdateMessage datagrams from an external tracking system.
+ */
+class UdpTrackReceiver : public QObject {
+    Q_OBJECT
+
+public:
+    explicit UdpTrackReceiver(TrackManager* trackManager, QObject* parent = nullptr);
+    ~UdpTrackReceiver() override;
+
+    bool start(quint16 port = 50001);
+    void stop();
+    bool isListening() const;
+
+    quint16 port() const { return m_port; }
+    uint64_t messagesReceived() const { return m_messagesReceived; }
+
+signals:
+    void trackReceived(uint32_t trackId);
+    void error(const QString& message);
+
+private slots:
+    void onReadyRead();
+
+private:
+    void processMessage(const TrackUpdateMessage& msg);
+
+    TrackManager* m_trackManager;
+    QUdpSocket*   m_socket;
+    quint16       m_port = 50001;
+    uint64_t      m_messagesReceived = 0;
+};
+
+} // namespace CounterUAS
+
+#endif // UDPTRACKRECEIVER_H
