@@ -1194,10 +1194,9 @@ void PPIDisplayWidget::drawTrackHistory(QPainter& painter, Track* track) {
 
 void PPIDisplayWidget::drawTrackLabel(QPainter& painter, Track* track, const QPointF& pos) {
     QColor color = colorForClassification(track->classification());
-    
-    // Keep label short and clean: just "T" + track number
+
     QString trackId = track->trackId();
-    QString label = "T" + trackId;
+    QString label = trackId;
     
     painter.setPen(color.lighter(120));
     QFont font = painter.font();
@@ -1727,7 +1726,7 @@ void PPIDisplayWidget::showTrackContextMenu(const QPoint& globalPos, const QStri
     );
     
     // Track info header (non-clickable)
-    QAction* headerAction = contextMenu.addAction(QString("Track T%1").arg(trackId));
+    QAction* headerAction = contextMenu.addAction(QString("Track %1").arg(trackId));
     headerAction->setEnabled(false);
     QFont headerFont = headerAction->font();
     headerFont.setBold(true);

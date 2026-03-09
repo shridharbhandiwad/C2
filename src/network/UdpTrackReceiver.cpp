@@ -215,72 +215,55 @@ void UdpTrackReceiver::processTrackUpdate(const TrackUpdateMessage& msg) {
     double quality = qBound(0.0, msg.trackQuality, 1.0);
     TrackClassification cls = mapClassification(msg.classification);
 
-    // Use external trackId for deterministic mapping to internal tracks.
-    // This avoids proximity-based correlation which breaks with multiple nearby tracks.
+    // For radar-only data the radar's own track number is preserved directly as
+    // the track ID (formatted "RAD-NNNN"), removing the need for an
+    // external→internal mapping table.
     uint32_t extId = msg.trackId;
-    QString internalId;
+    QString trackId = QString("RAD-%1").arg(extId, 4, 10, QChar('0'));
 
     if (msg.status == TrackStatus::Dropped) {
-        // Handle track drop: remove mapping and drop internal track
-        if (m_externalToInternalId.contains(extId)) {
-            internalId = m_externalToInternalId.take(extId);
-            m_trackManager->dropTrack(internalId);
-        }
+        m_trackManager->dropTrack(trackId);
         emit trackReceived(extId);
         return;
     }
 
-    if (m_externalToInternalId.contains(extId)) {
-        // Existing track: update position, velocity, classification
-        internalId = m_externalToInternalId.value(extId);
+    Track* t = m_trackManager->track(trackId);
+    if (t && t->state() != TrackState::Dropped) {
+        // Existing active track: update position, velocity, classification
+        m_trackManager->updateTrack(trackId, pos);
+        m_trackManager->updateTrackVelocity(trackId, vel);
 
-        Track* t = m_trackManager->track(internalId);
-        if (!t || t->state() == TrackState::Dropped) {
-            // Internal track was dropped or lost; re-create
-            m_externalToInternalId.remove(extId);
-        } else {
-            m_trackManager->updateTrack(internalId, pos);
-            m_trackManager->updateTrackVelocity(internalId, vel);
-
-            if (t->classification() != cls) {
-                m_trackManager->setTrackClassification(internalId, cls, quality);
-            }
-            t->setTrackQuality(quality);
-
-            emit trackReceived(extId);
-            return;
+        if (t->classification() != cls) {
+            m_trackManager->setTrackClassification(trackId, cls, quality);
         }
-    }
-
-    // New external track: create internal track and store the mapping
-    qint64 tsMs = static_cast<qint64>(msg.timestamp / 1000);
-    if (tsMs <= 0) {
-        tsMs = QDateTime::currentMSecsSinceEpoch();
-    }
-
-    internalId = m_trackManager->createTrack(pos, DetectionSource::Radar);
-    if (internalId.isEmpty()) {
-        Logger::instance().warning("UdpTrackReceiver",
-            QString("Failed to create internal track for external ID %1").arg(extId));
-        emit trackReceived(extId);
-        return;
-    }
-
-    m_externalToInternalId.insert(extId, internalId);
-
-    m_trackManager->updateTrackVelocity(internalId, vel);
-    m_trackManager->setTrackClassification(internalId, cls, quality);
-
-    Track* t = m_trackManager->track(internalId);
-    if (t) {
         t->setTrackQuality(quality);
+
+        emit trackReceived(extId);
+        return;
+    }
+
+    // New (or re-initiated) radar track: create with the radar-assigned ID
+    QString createdId = m_trackManager->createTrackWithId(trackId, pos, DetectionSource::Radar);
+    if (createdId.isEmpty()) {
+        Logger::instance().warning("UdpTrackReceiver",
+            QString("Failed to create track for radar ID %1").arg(trackId));
+        emit trackReceived(extId);
+        return;
+    }
+
+    m_trackManager->updateTrackVelocity(createdId, vel);
+    m_trackManager->setTrackClassification(createdId, cls, quality);
+
+    Track* newT = m_trackManager->track(createdId);
+    if (newT) {
+        newT->setTrackQuality(quality);
     }
 
     if (m_messagesReceived <= 1 || (m_messagesReceived % 100) == 0) {
         QString src = (cartesianZero && hasSpherical) ? "spherical" : "cartesian";
         Logger::instance().info("UdpTrackReceiver",
-            QString("New track mapping: ext=%1 -> int=%2 (%3): lat=%4 lon=%5 alt=%6")
-                .arg(extId).arg(internalId).arg(src)
+            QString("New radar track %1 (%2): lat=%3 lon=%4 alt=%5")
+                .arg(createdId).arg(src)
                 .arg(pos.latitude, 0, 'f', 6).arg(pos.longitude, 0, 'f', 6)
                 .arg(pos.altitude, 0, 'f', 1));
     }
