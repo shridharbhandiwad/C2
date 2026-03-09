@@ -1153,8 +1153,8 @@ void PPIDisplayWidget::drawTrackHistory(QPainter& painter, Track* track) {
     const QList<TrackHistoryPoint>& fullHistory = m_trackHistory[trackId];
     if (fullHistory.size() < 2) return;
     
-    // Get per-track history points limit, or use full history if not set
-    int maxPoints = m_trackHistoryPoints.value(trackId, -1);
+    // Get per-track history points limit, or use default if not set
+    int maxPoints = m_trackHistoryPoints.value(trackId, DEFAULT_HISTORY_POINTS);
     int startIdx = 0;
     if (maxPoints > 0 && fullHistory.size() > maxPoints) {
         startIdx = fullHistory.size() - maxPoints;
@@ -1856,7 +1856,7 @@ void PPIDisplayWidget::createHistoryPointsSubMenu(QMenu* menu, const QString& tr
     int currentPoints = m_trackHistoryPoints.value(trackId, -1);
     
     // Add "Default" option
-    QAction* defaultAction = menu->addAction("Default");
+    QAction* defaultAction = menu->addAction(QString("Default (%1 points)").arg(DEFAULT_HISTORY_POINTS));
     defaultAction->setCheckable(true);
     defaultAction->setChecked(currentPoints == -1);
     connect(defaultAction, &QAction::triggered, this, [this, trackId]() {

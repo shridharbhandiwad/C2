@@ -326,6 +326,7 @@ private:
     QString m_selectedTrackId;
     
     // Track history
+    static constexpr int DEFAULT_HISTORY_POINTS = 30;
     bool m_showTrackHistory = true;
     int m_trackHistorySeconds = 30;
     QTimer* m_historyTimer;
