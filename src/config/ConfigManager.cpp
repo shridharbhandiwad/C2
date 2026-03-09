@@ -100,7 +100,11 @@ bool ConfigManager::loadDefaults() {
 }
 
 QVariant ConfigManager::value(const QString& key, const QVariant& defaultValue) const {
-    QStringList parts = key.split('/');
+#if QT_VERSION >= QT_VERSION_CHECK(5, 14, 0)
+    QStringList parts = key.split(QLatin1Char('/'), Qt::KeepEmptyParts);
+#else
+    QStringList parts = key.split(QLatin1Char('/'), QString::KeepEmptyParts);
+#endif
     QJsonObject current = m_config;
     
     for (int i = 0; i < parts.size() - 1; ++i) {
@@ -113,7 +117,11 @@ QVariant ConfigManager::value(const QString& key, const QVariant& defaultValue) 
 }
 
 void ConfigManager::setValue(const QString& key, const QVariant& value) {
-    QStringList parts = key.split('/');
+#if QT_VERSION >= QT_VERSION_CHECK(5, 14, 0)
+    QStringList parts = key.split(QLatin1Char('/'), Qt::KeepEmptyParts);
+#else
+    QStringList parts = key.split(QLatin1Char('/'), QString::KeepEmptyParts);
+#endif
     
     // Navigate/create path
     QJsonObject* current = &m_config;

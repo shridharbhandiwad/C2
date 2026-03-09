@@ -11,7 +11,7 @@ PTZController::PTZController(QObject* parent)
     QObject::connect(m_socket, &QTcpSocket::connected, this, &PTZController::onSocketConnected);
     QObject::connect(m_socket, &QTcpSocket::disconnected, this, &PTZController::onSocketDisconnected);
     QObject::connect(m_socket, &QTcpSocket::readyRead, this, &PTZController::onSocketReadyRead);
-#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+#if QT_VERSION >= QT_VERSION_CHECK(5, 15, 0)
     QObject::connect(m_socket, &QAbstractSocket::errorOccurred, this, &PTZController::onSocketError);
 #else
     QObject::connect(m_socket, QOverload<QAbstractSocket::SocketError>::of(&QAbstractSocket::error),
@@ -266,7 +266,7 @@ QByteArray PTZController::buildONVIFRequest(const QString& action, const QString
         "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
         "<s:Envelope xmlns:s=\"http://www.w3.org/2003/05/soap-envelope\">"
         "<s:Body><%1>%2</%1></s:Body>"
-        "</s:Envelope>").arg(action, body);
+        "</s:Envelope>").arg(action).arg(body);
     
     return request.toUtf8();
 }
