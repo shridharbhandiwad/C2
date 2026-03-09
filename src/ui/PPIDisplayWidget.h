@@ -37,6 +37,17 @@ enum class PPISweepMode {
 };
 
 /**
+ * @brief Track display filter — controls which sensor-source tracks are shown
+ */
+enum class TrackDisplayFilter {
+    AllTracks = 0,  // Show all tracks (default)
+    RadarOnly,      // Only tracks detected exclusively by radar
+    VideoOnly,      // Only tracks detected exclusively by camera/video
+    RFOnly,         // Only tracks detected exclusively by RF detector
+    FusedOnly       // Only sensor-fused tracks (Combined source or multi-source)
+};
+
+/**
  * @brief Track history point for trail display
  */
 struct TrackHistoryPoint {
@@ -147,6 +158,10 @@ public:
     void setTrackHistoryPoints(const QString& trackId, int points);
     int trackHistoryPoints(const QString& trackId) const;
     
+    // Track display filter (sensor-source filter)
+    void setTrackDisplayFilter(TrackDisplayFilter filter);
+    TrackDisplayFilter trackDisplayFilter() const { return m_trackDisplayFilter; }
+
     // Track focus (magnifier)
     void focusTrack(const QString& trackId);
     void clearFocus();
@@ -271,6 +286,8 @@ private:
     QString buildTrackTooltip(Track* track) const;
     void showTrackContextMenu(const QPoint& globalPos, const QString& trackId);
     void createHistoryPointsSubMenu(QMenu* menu, const QString& trackId);
+    bool trackMatchesFilter(Track* track) const;
+    void drawFilterIndicator(QPainter& painter);
     
     // Track manager
     TrackManager* m_trackManager = nullptr;
@@ -287,6 +304,7 @@ private:
     double m_rangeScaleM = 5000.0;  // 5km default
     bool m_northUp = true;
     double m_heading = 0.0;
+    TrackDisplayFilter m_trackDisplayFilter = TrackDisplayFilter::AllTracks;
     
     // Sweep state
     double m_sweepAngle = 0.0;
@@ -364,5 +382,6 @@ private:
 Q_DECLARE_METATYPE(CounterUAS::MapTileKey)
 Q_DECLARE_METATYPE(CounterUAS::PPIDisplayMode)
 Q_DECLARE_METATYPE(CounterUAS::PPISweepMode)
+Q_DECLARE_METATYPE(CounterUAS::TrackDisplayFilter)
 
 #endif // PPIDISPLAYWIDGET_H

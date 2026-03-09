@@ -35,6 +35,7 @@
 #include <QInputDialog>
 #include <QSettings>
 #include <QToolButton>
+#include <QActionGroup>
 #include <QFileInfo>
 #include <QFrame>
 #include <QGraphicsDropShadowEffect>
@@ -746,6 +747,60 @@ void MainWindow::setupPPIToolBar() {
     
     displayOptionsBtn->setMenu(optionsMenu);
     m_ppiToolBar->addWidget(displayOptionsBtn);
+
+    m_ppiToolBar->addSeparator();
+
+    // Track Source Filter — show only radar / video / RF / fused tracks
+    QToolButton* trackFilterBtn = new QToolButton(this);
+    trackFilterBtn->setText("Tracks: All");
+    trackFilterBtn->setPopupMode(QToolButton::InstantPopup);
+    trackFilterBtn->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+    trackFilterBtn->setToolTip("Filter PPI display by sensor source");
+
+    QMenu* trackFilterMenu = new QMenu(trackFilterBtn);
+    QActionGroup* trackFilterGroup = new QActionGroup(trackFilterMenu);
+    trackFilterGroup->setExclusive(true);
+
+    auto addFilterAction = [&](const QString& label,
+                               TrackDisplayFilter filter,
+                               const QString& tooltip) -> QAction* {
+        QAction* action = trackFilterMenu->addAction(label);
+        action->setCheckable(true);
+        action->setActionGroup(trackFilterGroup);
+        action->setToolTip(tooltip);
+        connect(action, &QAction::triggered, this,
+                [this, label, filter, trackFilterBtn]() {
+                    m_ppiWidget->setTrackDisplayFilter(filter);
+                    trackFilterBtn->setText(QString("Tracks: %1").arg(label));
+                });
+        return action;
+    };
+
+    QAction* allTracksAction = addFilterAction(
+        "All", TrackDisplayFilter::AllTracks,
+        "Show all tracks regardless of sensor source");
+    allTracksAction->setChecked(true);
+
+    trackFilterMenu->addSeparator();
+
+    addFilterAction(
+        "Radar Only", TrackDisplayFilter::RadarOnly,
+        "Show only tracks detected exclusively by radar");
+    addFilterAction(
+        "Video Only", TrackDisplayFilter::VideoOnly,
+        "Show only tracks detected exclusively by camera/video");
+    addFilterAction(
+        "RF Only", TrackDisplayFilter::RFOnly,
+        "Show only tracks detected exclusively by RF detector");
+
+    trackFilterMenu->addSeparator();
+
+    addFilterAction(
+        "Fused", TrackDisplayFilter::FusedOnly,
+        "Show only sensor-fused tracks (multiple sources combined)");
+
+    trackFilterBtn->setMenu(trackFilterMenu);
+    m_ppiToolBar->addWidget(trackFilterBtn);
 }
 
 void MainWindow::setupDockWidgets() {

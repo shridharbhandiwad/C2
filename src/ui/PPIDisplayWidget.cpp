@@ -230,6 +230,13 @@ void PPIDisplayWidget::setShowTrackHistory(bool show) {
     update();
 }
 
+void PPIDisplayWidget::setTrackDisplayFilter(TrackDisplayFilter filter) {
+    if (m_trackDisplayFilter != filter) {
+        m_trackDisplayFilter = filter;
+        update();
+    }
+}
+
 void PPIDisplayWidget::setTrackHistoryLength(int seconds) {
     m_trackHistorySeconds = qBound(5, seconds, 300);
 }
@@ -633,6 +640,7 @@ void PPIDisplayWidget::paintEvent(QPaintEvent* event) {
     drawNorthIndicator(painter);
     drawCompassRose(painter);
     drawScaleInfo(painter);
+    drawFilterIndicator(painter);
 }
 
 void PPIDisplayWidget::mousePressEvent(QMouseEvent* event) {
@@ -1033,7 +1041,8 @@ void PPIDisplayWidget::drawTracks(QPainter& painter) {
     for (auto it = m_tracks.begin(); it != m_tracks.end(); ++it) {
         Track* track = it.value();
         if (!track || track->state() == TrackState::Dropped) continue;
-        
+        if (!trackMatchesFilter(track)) continue;
+
         QPointF ppiPos = geoToPPI(track->position());
         QPointF screenPos = center + ppiPos;
         
@@ -1357,6 +1366,85 @@ void PPIDisplayWidget::drawScaleInfo(QPainter& painter) {
     painter.drawText(padding + 5, y + lineHeight * 2, modeStr);
     painter.drawText(padding + 5, y + lineHeight * 3, sweepStr);
     painter.drawText(padding + 5, y + lineHeight * 4, trackStr);
+}
+
+bool PPIDisplayWidget::trackMatchesFilter(Track* track) const {
+    if (m_trackDisplayFilter == TrackDisplayFilter::AllTracks) return true;
+
+    bool hasRadar    = track->hasSource(DetectionSource::Radar);
+    bool hasCamera   = track->hasSource(DetectionSource::Camera);
+    bool hasRF       = track->hasSource(DetectionSource::RFDetector);
+    bool hasCombined = track->hasSource(DetectionSource::Combined);
+
+    switch (m_trackDisplayFilter) {
+        case TrackDisplayFilter::RadarOnly:
+            // Exclusively radar — no camera, no RF, and not sensor-fused
+            return hasRadar && !hasCamera && !hasRF && !hasCombined;
+        case TrackDisplayFilter::VideoOnly:
+            // Exclusively camera/video — no radar, no RF, and not sensor-fused
+            return hasCamera && !hasRadar && !hasRF && !hasCombined;
+        case TrackDisplayFilter::RFOnly:
+            // Exclusively RF — no radar, no camera, and not sensor-fused
+            return hasRF && !hasRadar && !hasCamera && !hasCombined;
+        case TrackDisplayFilter::FusedOnly:
+            // Sensor-fused: explicitly marked Combined or carries multiple primary sources
+            return hasCombined || ((hasRadar + hasCamera + hasRF) > 1);
+        default:
+            return true;
+    }
+}
+
+void PPIDisplayWidget::drawFilterIndicator(QPainter& painter) {
+    if (m_trackDisplayFilter == TrackDisplayFilter::AllTracks) return;
+
+    QString filterLabel;
+    QColor  filterColor;
+    switch (m_trackDisplayFilter) {
+        case TrackDisplayFilter::RadarOnly:
+            filterLabel = "FILTER: RADAR ONLY";
+            filterColor = QColor(0, 200, 255);   // cyan-blue
+            break;
+        case TrackDisplayFilter::VideoOnly:
+            filterLabel = "FILTER: VIDEO ONLY";
+            filterColor = QColor(255, 165, 0);   // orange
+            break;
+        case TrackDisplayFilter::RFOnly:
+            filterLabel = "FILTER: RF ONLY";
+            filterColor = QColor(180, 0, 255);   // purple
+            break;
+        case TrackDisplayFilter::FusedOnly:
+            filterLabel = "FILTER: FUSED TRACKS";
+            filterColor = QColor(0, 230, 100);   // green
+            break;
+        default:
+            return;
+    }
+
+    QFont font = painter.font();
+    font.setPointSize(9);
+    font.setBold(true);
+    painter.setFont(font);
+
+    QFontMetrics fm(font);
+    int textW = fm.horizontalAdvance(filterLabel);
+    int textH = fm.height();
+    int padding = 6;
+    int x = (width() - textW) / 2 - padding;
+    int y = 10;
+
+    // Badge background
+    QRect badge(x, y, textW + padding * 2, textH + padding);
+    painter.setPen(Qt::NoPen);
+    painter.setBrush(QColor(0, 0, 0, 180));
+    painter.drawRoundedRect(badge, 4, 4);
+
+    // Coloured left accent bar
+    painter.setBrush(filterColor);
+    painter.drawRoundedRect(QRect(x, y, 4, badge.height()), 2, 2);
+
+    // Label text
+    painter.setPen(filterColor);
+    painter.drawText(badge.adjusted(padding + 2, 0, 0, 0), Qt::AlignVCenter, filterLabel);
 }
 
 void PPIDisplayWidget::requestMapTile(int x, int y, int zoom) {
