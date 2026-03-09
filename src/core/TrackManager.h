@@ -63,6 +63,7 @@ public:
     
     // Track creation and update
     QString createTrack(const GeoPosition& pos, DetectionSource source);
+    QString createTrackWithId(const QString& id, const GeoPosition& pos, DetectionSource source);
     void updateTrack(const QString& trackId, const GeoPosition& pos);
     void updateTrackVelocity(const QString& trackId, const VelocityVector& vel);
     void setTrackClassification(const QString& trackId, TrackClassification cls, double confidence = 1.0);

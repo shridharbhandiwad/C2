@@ -3,7 +3,7 @@
 
 #include <QObject>
 #include <QUdpSocket>
-#include <QHash>
+#include <QString>
 #include <cstdint>
 
 namespace CounterUAS {
@@ -91,9 +91,6 @@ private:
     QUdpSocket*   m_socket;
     quint16       m_port = 50001;
     uint64_t      m_messagesReceived = 0;
-
-    // Maps external trackId -> internal TrackManager trackId
-    QHash<uint32_t, QString> m_externalToInternalId;
 };
 
 } // namespace CounterUAS

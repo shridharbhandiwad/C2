@@ -166,6 +166,50 @@ QString TrackManager::createTrack(const GeoPosition& pos, DetectionSource source
     return trackId;
 }
 
+QString TrackManager::createTrackWithId(const QString& id, const GeoPosition& pos, DetectionSource source) {
+    QWriteLocker locker(&m_lock);
+
+    if (m_tracks.size() >= m_config.maxTracks) {
+        Logger::instance().warning("TrackManager", "Maximum track limit reached");
+        return QString();
+    }
+
+    // Remove any previously-dropped track that held this ID
+    if (m_tracks.contains(id)) {
+        if (m_tracks[id]->state() != TrackState::Dropped) {
+            // Already active — just return the existing ID
+            return id;
+        }
+        delete m_tracks.take(id);
+        m_kalmanFilters.remove(id);
+    }
+
+    Track* newTrack = new Track(id, this);
+    newTrack->setPosition(pos);
+    newTrack->addDetectionSource(source);
+    newTrack->setState(TrackState::Initiated);
+    newTrack->setClassification(TrackClassification::Pending);
+
+    m_tracks.insert(id, newTrack);
+
+    if (m_config.enableKalmanFilter) {
+        auto filter = std::make_shared<KalmanFilter2D>();
+        filter->initialize(pos.latitude, pos.longitude);
+        m_kalmanFilters.insert(id, filter);
+    }
+
+    m_stats.totalTracksCreated++;
+    m_stats.currentActiveCount = m_tracks.size();
+
+    locker.unlock();
+
+    Logger::instance().info("TrackManager", "Created track: " + id);
+    emit trackCreated(id);
+    emit trackCountChanged(m_tracks.size());
+
+    return id;
+}
+
 void TrackManager::updateTrack(const QString& trackId, const GeoPosition& pos) {
     QWriteLocker locker(&m_lock);
     
