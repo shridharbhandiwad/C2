@@ -85,7 +85,7 @@ int MessageProtocol::deserialize(const QByteArray& data, Message& message) const
     QByteArray payload = data.mid(HEADER_SIZE, payloadSize);
     
     // Decompress if needed
-    if (payload.size() > 0 && static_cast<quint8>(payload[0]) == 0x78) {
+    if (payload.size() > 0 && static_cast<quint8>(payload.at(0)) == 0x78) {
         payload = qUncompress(payload);
     }
     

@@ -31,7 +31,7 @@ QString NetworkManager::addConnection(const ConnectionConfig& config) {
         connect(conn.tcpSocket, &QTcpSocket::connected, this, &NetworkManager::onTcpConnected);
         connect(conn.tcpSocket, &QTcpSocket::disconnected, this, &NetworkManager::onTcpDisconnected);
         connect(conn.tcpSocket, &QTcpSocket::readyRead, this, &NetworkManager::onTcpReadyRead);
-#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+#if QT_VERSION >= QT_VERSION_CHECK(5, 15, 0)
         connect(conn.tcpSocket, &QTcpSocket::errorOccurred, this, &NetworkManager::onTcpError);
 #else
         connect(conn.tcpSocket, QOverload<QAbstractSocket::SocketError>::of(&QAbstractSocket::error),
